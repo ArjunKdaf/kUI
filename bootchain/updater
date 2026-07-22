@@ -1,0 +1,16 @@
+#!/bin/sh
+# kUI boot, stage 1. The stock rootfs hands us control here; from this
+# point the card belongs to kUI. Only job: confirm the silicon, hand off.
+
+case "$(cat /proc/cpuinfo 2>/dev/null)" in
+*TG5040*|*TG3040*)
+	cd "$(dirname "$0")" && exec ./tg5040.sh
+	;;
+esac
+
+# Unknown hardware, or the hand-off failed. Freeze the card and cut
+# power — the stock UI must never get a turn to write to it.
+echo s > /proc/sysrq-trigger
+echo u > /proc/sysrq-trigger
+echo o > /proc/sysrq-trigger
+while true; do sleep 1; done

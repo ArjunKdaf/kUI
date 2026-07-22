@@ -1,0 +1,5 @@
+[toolchain]
+# Always the latest stable Rust (rustup resolves this at sync time).
+channel = "stable"
+components = ["rustfmt", "clippy"]
+targets = ["aarch64-unknown-linux-gnu"]

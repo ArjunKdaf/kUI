@@ -1,0 +1,27 @@
+kUI — install
+=============
+
+What this is: the kUI operating system for the TrimUI Brick (tg5040).
+Launcher, game frontend and system daemon — kUI owns the whole boot
+chain. No paks required.
+
+Fresh install (computer, card in a reader)
+------------------------------------------
+1. Format an SD card as FAT32 (MBR).
+2. Unzip the kUI card image onto it.
+3. Add your own ROMs (Roms/), BIOS files (Bios/) and any box art.
+4. Eject, insert into the Brick, power on. kUI boots.
+
+Updating
+--------
+Open Control Panel -> Updater, pick the new version, and let it
+download and apply over the air. A boot-time migration handles any
+data restructuring — no reformat, no data loss.
+
+Notes
+-----
+- Games, saves, states, box art and collections are read where they
+  already live — nothing is moved or converted.
+- Settings live in .userdata/shared/kui.cfg (one flat file).
+- Nintendo DS, PSP, Dreamcast and other standalone emulators install
+  on demand from the pak store (Control Panel -> PakDek).

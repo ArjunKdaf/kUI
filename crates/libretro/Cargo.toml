@@ -1,0 +1,9 @@
+[package]
+name = "kui-libretro"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+libloading.workspace = true
+libc.workspace = true

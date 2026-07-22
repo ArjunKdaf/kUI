@@ -1,0 +1,10 @@
+[package]
+name = "kui-ra"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+build = "build.rs"
+# Vendored C library (crates/ra/vendor/rcheevos) is MIT licensed, see its LICENSE file.
+
+[dependencies]

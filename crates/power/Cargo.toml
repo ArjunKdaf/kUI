@@ -1,0 +1,14 @@
+[package]
+name = "kui-power"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+libc.workspace = true
+kui-hal.workspace = true
+kui-config.workspace = true
+
+[[bin]]
+name = "kui-power"
+path = "src/main.rs"

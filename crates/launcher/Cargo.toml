@@ -1,0 +1,15 @@
+[package]
+name = "kui-launcher"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+kui-hal.workspace = true
+kui-gfx.workspace = true
+kui-config.workspace = true
+kui-libretro.workspace = true
+kui-ra.workspace = true
+kui-store.workspace = true
+sdl2.workspace = true
+glow.workspace = true
