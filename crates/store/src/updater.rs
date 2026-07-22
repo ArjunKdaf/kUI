@@ -19,8 +19,8 @@ const SDCARD: &str = "/mnt/SDCARD";
 pub struct Release {
     pub tag: String,
     pub name: String,
-    /// First asset whose name contains "ota" and ends in .zip; else the
-    /// first .zip asset.
+    /// Download URL of the smallest `.zip` asset — the OS-update payload,
+    /// which is always smaller than a full fresh-install card image.
     pub ota_url: Option<String>,
 }
 
@@ -48,18 +48,22 @@ fn parse_releases(body: &str) -> Result<Vec<Release>, String> {
             _ => tag.clone(),
         };
         let assets = r.get("assets").and_then(Json::as_arr).unwrap_or(&[]);
-        let asset_url = |pred: &dyn Fn(&str) -> bool| -> Option<String> {
-            assets.iter().find_map(|a| {
-                let aname = a.get("name").and_then(Json::as_str)?;
-                if pred(&aname.to_ascii_lowercase()) {
-                    a.get("browser_download_url").and_then(Json::as_str).map(str::to_string)
-                } else {
-                    None
+        // Pick the SMALLEST .zip asset. The OS-update payload is always
+        // smaller than a full fresh-install card image, so this stays
+        // correct no matter the asset name or upload order.
+        let ota_url = assets
+            .iter()
+            .filter_map(|a| {
+                let name = a.get("name").and_then(Json::as_str)?;
+                if !name.to_ascii_lowercase().ends_with(".zip") {
+                    return None;
                 }
+                let url = a.get("browser_download_url").and_then(Json::as_str)?;
+                let size = a.get("size").and_then(Json::as_f64).unwrap_or(f64::MAX);
+                Some((size as u64, url.to_string()))
             })
-        };
-        let ota_url = asset_url(&|n| n.contains("ota") && n.ends_with(".zip"))
-            .or_else(|| asset_url(&|n| n.ends_with(".zip")));
+            .min_by_key(|(size, _)| *size)
+            .map(|(_, url)| url);
         out.push(Release { tag, name, ota_url });
     }
     Ok(out)
