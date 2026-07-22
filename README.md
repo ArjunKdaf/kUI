@@ -106,8 +106,8 @@ runs the whole show, from the boot chain to the pixels.
 | Add-ons | FDS, TurboGrafx-CD, Sega CD, 32X, Jaguar CD |
 | Handhelds | Game Boy, Lynx, Game Gear, Supervision, Mega Duck, GBC, NGP/NGPC, WonderSwan/Color, Pokémon Mini, GBA |
 | Computers | ZX Spectrum, Atari 800/XL/XE/5200, C64, C128, VIC-20, PET, Plus/4, CPC, MSX, Amiga |
-| Other | PICO-8, Uzebox, Doom, Arcade |
-| Via PakDek | N64, DreamCast, PSP, DS, Saturn, ScummVM, and more |
+| Other | fake08, Uzebox, Doom, Arcade |
+| Via PakDek | N64, DreamCast, PSP, DS, Saturn, ScummVM, PICO-8, and more |
 
 ## Installing
 
