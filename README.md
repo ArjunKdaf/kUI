@@ -28,7 +28,7 @@
 ---
 
 A custom operating system for the **TrimUI Brick / Hammer**, written from
-scratch in **Rust**. No inherited code — one launcher, one libretro game
+scratch. No inherited code — one launcher, one libretro game
 frontend, one small system daemon, all built for exactly this device.
 Faster and lighter than what came before, and fully self-sufficient: kUI
 runs the whole show, from the boot chain to the pixels.
@@ -58,10 +58,9 @@ runs the whole show, from the boot chain to the pixels.
 - **The Dude** — kUI's built-in gamification companion: XP and levels,
   session / daily / weekly quests, achievements, play streaks, and retro
   trivia.
-- **Simple Mode** — games only, minimal menus, one toggle.
 
 **Game frontend** (native libretro host)
-- **Every core on the card certified** — GB/GBC/GBA, SNES, Genesis / SMS
+- **Broad system support** — GB/GBC/GBA, SNES, Genesis / SMS
   / Game Gear, TurboGrafx-16 (+CD) / SuperGrafx, Lynx, NeoGeo Pocket,
   WonderSwan, Virtual Boy, Amiga (+CD32), DOS, and more.
 - **8 save-state slots** with PNG previews, plus **auto-resume** into the
@@ -70,8 +69,6 @@ runs the whole show, from the boot chain to the pixels.
   effects** (scanlines, LCD grid), and **GLSL shaders**.
 - **Cheats**, **per-game control remapping**, **turbo**, **fast-forward**,
   **multi-disc**, **screenshots**.
-- **D-pad-as-stick** for analog titles (the Brick/Hammer has no analog
-  sticks) — toggle per game.
 - **RetroAchievements** built on the official **rcheevos** library:
   session announce, unlock toasts, badge art, in-game achievement
   browser, plus an offline queue and bulk pre-fetch. Softcore today
@@ -89,8 +86,7 @@ runs the whole show, from the boot chain to the pixels.
   date & time, developer (SSH), NTP.
 - **Tools** — Scraper & Patcher (artwork + metadata), Collections
   manager, Boot Logo picker, Themes, Battery graph, Game tracker, Core
-  Options, Input tester, a dual-pane **Files** manager, and **PakDek**
-  for installing extra emulators and tools.
+  Options, Input tester, Files, and PakDek.
 - **Updater** — over-the-air updates from the device with a live progress
   bar; no reinstall, no data loss.
 
@@ -166,7 +162,7 @@ Defaults:
 
 ## Building
 
-Rust stable, cross-compiled to `aarch64-unknown-linux-gnu` with kUI's own
+Cross-compiled to `aarch64-unknown-linux-gnu` with kUI's own
 `aarch64-kui-linux-gnu` toolchain (glibc 2.28; place it in `toolchain/`):
 
 ```sh
