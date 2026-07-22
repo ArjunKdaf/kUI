@@ -42,10 +42,12 @@ cp assets/cacert.pem "$DIST/.system/res/cacert.pem"
 cp assets/iconsheet/assets@2x.png "$DIST/.system/res/assets@2x.png"
 cp scripts/INSTALL.txt "$DIST/README.txt"
 
-# OTA payload: what the in-OS Updater downloads and applies.
-# Public releases ship a FULL CARD IMAGE instead (assembled at release
-# time from a curated card: OS + cores + art + overlays + boot chain);
-# this zip is not a user-facing artifact.
-nix-shell -p zip --run "cd dist && rm -f 'kUI-$VERSION-ota.zip' && zip -Xr 'kUI-$VERSION-ota.zip' 'kUI-$VERSION' >/dev/null"
-echo "built dist/kUI-$VERSION-ota.zip"
-sha256sum "dist/kUI-$VERSION-ota.zip"
+# Release payload: one flat zip in SD-root layout. It serves every path:
+#   - the in-OS Updater  (unzip auto-detects no top-level dir to strip)
+#   - the 0.81a bridge   (its C updater does `cd /mnt/SDCARD && unzip -o`)
+#   - a manual install   (unzip straight onto the card root)
+# A full fresh-install card image (OS + cores + art + overlays) is
+# assembled separately at release time from a curated card.
+nix-shell -p zip --run "cd 'dist/kUI-$VERSION' && rm -f '../kUI-$VERSION.zip' && zip -Xr '../kUI-$VERSION.zip' . >/dev/null"
+echo "built dist/kUI-$VERSION.zip"
+sha256sum "dist/kUI-$VERSION.zip"
