@@ -42,12 +42,14 @@ cp assets/cacert.pem "$DIST/.system/res/cacert.pem"
 cp assets/iconsheet/assets@2x.png "$DIST/.system/res/assets@2x.png"
 cp scripts/INSTALL.txt "$DIST/README.txt"
 
-# Release payload: one flat zip in SD-root layout. It serves every path:
+# OS update payload: one flat zip in SD-root layout. It is kUI itself
+# (binaries + boot chain + migrations + libs) -- NOT cores or art. Serves
+# every UPDATE/overlay path:
 #   - the in-OS Updater  (unzip auto-detects no top-level dir to strip)
 #   - the 0.81a bridge   (its C updater does `cd /mnt/SDCARD && unzip -o`)
-#   - a manual install   (unzip straight onto the card root)
-# A full fresh-install card image (OS + cores + art + overlays) is
-# assembled separately at release time from a curated card.
+#   - a manual overlay onto a card that already has cores + art
+# A fresh, blank-SD install needs the full card image (OS + cores + art +
+# overlays + bootlogos), assembled separately from a curated card.
 nix-shell -p zip --run "cd 'dist/kUI-$VERSION' && rm -f '../kUI-$VERSION.zip' && zip -Xr '../kUI-$VERSION.zip' . >/dev/null"
 echo "built dist/kUI-$VERSION.zip"
 sha256sum "dist/kUI-$VERSION.zip"
