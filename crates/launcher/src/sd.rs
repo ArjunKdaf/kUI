@@ -1,6 +1,7 @@
 //! SD card layout: paths, platform scanning, carousel art resolution.
 //! The layout is a frozen compat contract.
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 const NEWLINE_CH: char = 0x0A as char;
@@ -349,6 +350,38 @@ impl Sd {
             let kept: Vec<&str> =
                 cur.lines().filter(|l| l.trim() != rel).collect();
             let _ = std::fs::write(file, kept.join(NL) + NL);
+        }
+    }
+
+    /// Default (smart) collections the user has wiped. Persisted in
+    /// userdata so it survives updates — a dismissed default never returns.
+    fn dismissed_path(&self) -> PathBuf {
+        self.root.join(".userdata/shared/kui/collections_dismissed.txt")
+    }
+
+    /// The set of dismissed default-collection keys.
+    pub fn smart_dismissed(&self) -> HashSet<String> {
+        std::fs::read_to_string(self.dismissed_path())
+            .map(|t| {
+                t.lines()
+                    .map(|l| l.trim().to_string())
+                    .filter(|l| !l.is_empty())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Record a default collection as dismissed (idempotent).
+    pub fn smart_dismiss(&self, key: &str) {
+        let mut set = self.smart_dismissed();
+        if set.insert(key.to_string()) {
+            let path = self.dismissed_path();
+            if let Some(parent) = path.parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+            let mut lines: Vec<String> = set.into_iter().collect();
+            lines.sort();
+            let _ = std::fs::write(path, lines.join("\n"));
         }
     }
 

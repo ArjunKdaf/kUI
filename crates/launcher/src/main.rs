@@ -155,6 +155,7 @@ struct Row {
 enum RowAction {
     Launch(PathBuf),
     OpenCollection(PathBuf),
+    OpenSmartCollection(String),
     OpenTile(usize),
     PickPlatform(usize),
     PickGame(PathBuf),
@@ -170,6 +171,9 @@ enum ListKind {
     Recents,
     CollectionsIndex,
     Collection(PathBuf),
+    /// A built-in franchise collection's game list (identity lives in the
+    /// rows; back returns to the index, so no key is needed here).
+    SmartCollection,
     PickPlatform(PathBuf),
     PickGame(PathBuf),
     /// Installed paks, shown as the "Paks" collection.
@@ -424,14 +428,14 @@ fn quick_items(sd: &Sd, on_device: bool) -> Vec<QuickItem> {
             action: QuickAction::Recents,
         });
     }
-    if !sd.collections().is_empty() {
-        v.push(QuickItem {
-            label: "Collections".into(),
-            value: None,
-            desc: "Your game collections",
-            action: QuickAction::Collections,
-        });
-    }
+    // Collections live only here in the quick menu, so the entry always
+    // shows — it is the sole way in to create or browse them.
+    v.push(QuickItem {
+        label: "Collections".into(),
+        value: None,
+        desc: "Your game collections",
+        action: QuickAction::Collections,
+    });
     v.push(QuickItem {
         label: "Control Panel".into(),
         value: None,
@@ -2999,7 +3003,7 @@ fn run() -> i32 {
                                 let _ = sd.collection_create(&name);
                             }
                             next_screen =
-                                Some(open_collections_index(&sd, &mut boxart, &mut infos));
+                                Some(open_collections_index(&sd, &mut boxart, &mut infos, &platforms));
                         }
                         OskTarget::CollectionRename { dir } => {
                             let name = buf.trim();
@@ -3009,7 +3013,7 @@ fn run() -> i32 {
                                 let _ = std::fs::rename(&*dir, parent.join(name));
                             }
                             next_screen =
-                                Some(open_collections_index(&sd, &mut boxart, &mut infos));
+                                Some(open_collections_index(&sd, &mut boxart, &mut infos, &platforms));
                         }
                         OskTarget::WifiPass { ssid } => {
                             wifi_connect_spawn(ssid, Some(buf));
@@ -3048,7 +3052,7 @@ fn run() -> i32 {
                 } else if back {
                     next_screen = Some(match target {
                         OskTarget::Collection | OskTarget::CollectionRename { .. } => {
-                            open_collections_index(&sd, &mut boxart, &mut infos)
+                            open_collections_index(&sd, &mut boxart, &mut infos, &platforms)
                         }
                         OskTarget::WifiPass { .. } => {
                             Screen::Wifi { nets: Vec::new(), selected: 0, scroll: 0 }
@@ -3217,7 +3221,7 @@ fn run() -> i32 {
                     match items[*selected].action {
                         QuickAction::Collections => {
                             next_screen =
-                                Some(open_collections_index(&sd, &mut boxart, &mut infos));
+                                Some(open_collections_index(&sd, &mut boxart, &mut infos, &platforms));
                             v_rep.clear();
                         }
                         QuickAction::Recents => {
@@ -3343,16 +3347,16 @@ fn run() -> i32 {
                     }
                 }
                 if back {
-                    if !matches!(kind, ListKind::Root | ListKind::Collection(_) | ListKind::PickPlatform(_) | ListKind::PickGame(_)) {
+                    if !matches!(kind, ListKind::Root | ListKind::Collection(_) | ListKind::SmartCollection | ListKind::PickPlatform(_) | ListKind::PickGame(_)) {
                         remember.insert(tile, (*selected, *scroll));
                     }
                     v_rep.clear();
                     h_rep.clear();
                     match kind {
                         ListKind::Root => {} // B at root: no-op (Select leaves)
-                        ListKind::Collection(_) => {
+                        ListKind::Collection(_) | ListKind::SmartCollection => {
                             next_screen =
-                                Some(open_collections_index(&sd, &mut boxart, &mut infos));
+                                Some(open_collections_index(&sd, &mut boxart, &mut infos, &platforms));
                         }
                         ListKind::PickPlatform(col) => {
                             let col = col.clone();
@@ -3405,6 +3409,12 @@ fn run() -> i32 {
                         }
                         RowAction::OpenCollection(path) => {
                             next_screen = Some(open_collection_detail(&sd, path));
+                            boxart.clear();
+                            infos.clear();
+                            v_rep.clear();
+                        }
+                        RowAction::OpenSmartCollection(key) => {
+                            next_screen = Some(open_smart_collection_detail(&platforms, key));
                             boxart.clear();
                             infos.clear();
                             v_rep.clear();
@@ -3535,6 +3545,27 @@ fn run() -> i32 {
                                 && now - at < std::time::Duration::from_secs(2) =>
                         {
                             sd.collection_delete(path);
+                            rows.remove(*selected);
+                            if *selected >= rows.len() && *selected > 0 {
+                                *selected -= 1;
+                            }
+                            wipe_armed = None;
+                        }
+                        _ => wipe_armed = Some((*selected, now)),
+                    }
+                } else if wipe_btn
+                    && matches!(kind, ListKind::CollectionsIndex)
+                    && let Some(Row { action: RowAction::OpenSmartCollection(key), .. }) =
+                        rows.get(*selected)
+                {
+                    // wiping a default collection dismisses it for good —
+                    // persisted in userdata, so an update never revives it.
+                    match wipe_armed {
+                        Some((ai, at))
+                            if ai == *selected
+                                && now - at < std::time::Duration::from_secs(2) =>
+                        {
+                            sd.smart_dismiss(key);
                             rows.remove(*selected);
                             if *selected >= rows.len() && *selected > 0 {
                                 *selected -= 1;
@@ -5512,6 +5543,9 @@ fn run() -> i32 {
                 Screen::List { kind: ListKind::Collection(_), .. } => {
                     &[("Y", ""), ("X", "Add"), ("A", "Open"), ("B", "Back")]
                 }
+                Screen::List { kind: ListKind::SmartCollection, .. } => {
+                    &[("A", "Open"), ("B", "Back")]
+                }
                 Screen::List { kind: ListKind::PickPlatform(_) | ListKind::PickGame(_), .. } => {
                     &[("A", "Pick"), ("B", "Back")]
                 }
@@ -5835,10 +5869,118 @@ fn open_pick_platform(platforms: &[sd::PlatformEntry], col: &std::path::Path) ->
     }
 }
 
+/// Built-in "smart" collections: a display name and the accent-folded,
+/// lowercase aliases that match a game when they occur in its (folded)
+/// filename. Shown only when the library has a match and the user hasn't
+/// dismissed it. Aliases stay specific (a distinctive word, or a multi-word
+/// phrase) so they don't sweep in unrelated titles.
+const SMART_COLLECTIONS: &[(&str, &[&str])] = &[
+    ("Mario", &["mario"]),
+    ("Pokémon", &["pokemon"]),
+    ("Zelda", &["zelda"]),
+    ("Mega Man", &["mega man", "megaman", "rockman"]),
+    ("Metroid", &["metroid"]),
+    ("Kirby", &["kirby"]),
+    ("Donkey Kong", &["donkey kong"]),
+    ("Yoshi", &["yoshi"]),
+    ("Wario", &["wario"]),
+    ("Fire Emblem", &["fire emblem"]),
+    ("Final Fantasy", &["final fantasy"]),
+    ("Dragon Quest", &["dragon quest", "dragon warrior"]),
+    ("Castlevania", &["castlevania"]),
+    ("Bomberman", &["bomberman"]),
+    ("Sonic", &["sonic"]),
+    ("Street Fighter", &["street fighter"]),
+    ("Mortal Kombat", &["mortal kombat"]),
+    ("Contra", &["contra"]),
+    ("Metal Slug", &["metal slug"]),
+    ("Double Dragon", &["double dragon"]),
+    ("TMNT", &["teenage mutant", "ninja turtles", "tmnt"]),
+    ("Tetris", &["tetris"]),
+    ("Pac-Man", &["pac-man", "pacman", "pac man"]),
+    ("Medabots", &["medarot", "medabots"]),
+    ("Digimon", &["digimon"]),
+    ("Dragon Ball", &["dragon ball", "dragonball"]),
+    ("Yu-Gi-Oh!", &["yu-gi-oh", "yugioh", "yu gi oh"]),
+    ("Naruto", &["naruto"]),
+    ("One Piece", &["one piece"]),
+    ("Crash Bandicoot", &["crash bandicoot"]),
+    ("Spyro", &["spyro"]),
+    ("Rayman", &["rayman"]),
+    ("Star Wars", &["star wars"]),
+    ("LEGO", &["lego"]),
+    ("Spider-Man", &["spider-man", "spiderman", "spider man"]),
+    ("Batman", &["batman"]),
+    ("Harry Potter", &["harry potter"]),
+    ("Advance Wars", &["advance wars"]),
+    ("Golden Sun", &["golden sun"]),
+    ("Metal Gear", &["metal gear"]),
+    ("Star Fox", &["star fox", "starwing"]),
+    ("Kid Icarus", &["kid icarus"]),
+];
+
+/// Lowercase and strip common Latin accents, so "Pokémon" and "Pokemon"
+/// both fold to the same string for matching.
+fn fold_name(s: &str) -> String {
+    s.to_lowercase()
+        .chars()
+        .map(|c| match c {
+            'á' | 'à' | 'â' | 'ä' | 'ã' | 'å' => 'a',
+            'é' | 'è' | 'ê' | 'ë' => 'e',
+            'í' | 'ì' | 'î' | 'ï' => 'i',
+            'ó' | 'ò' | 'ô' | 'ö' | 'õ' => 'o',
+            'ú' | 'ù' | 'û' | 'ü' => 'u',
+            'ç' => 'c',
+            'ñ' => 'n',
+            other => other,
+        })
+        .collect()
+}
+
+/// Every ROM in the library as (folded filename, absolute path).
+fn smart_library(platforms: &[sd::PlatformEntry]) -> Vec<(String, PathBuf)> {
+    platforms
+        .iter()
+        .flat_map(|p| p.roms.iter().map(move |r| (fold_name(r), p.dir.join(r))))
+        .collect()
+}
+
+/// ROMs whose folded name contains any of `aliases`.
+fn smart_matches(library: &[(String, PathBuf)], aliases: &[&str]) -> Vec<PathBuf> {
+    library
+        .iter()
+        .filter(|(name, _)| aliases.iter().any(|a| name.contains(a)))
+        .map(|(_, p)| p.clone())
+        .collect()
+}
+
+fn open_smart_collection_detail(platforms: &[sd::PlatformEntry], key: &str) -> Screen {
+    let aliases = SMART_COLLECTIONS
+        .iter()
+        .find(|(name, _)| *name == key)
+        .map(|(_, a)| *a)
+        .unwrap_or(&[]);
+    let library = smart_library(platforms);
+    let mut games = smart_matches(&library, aliases);
+    games.sort_by_key(|p| stem_of(p).to_lowercase());
+    Screen::List {
+        kind: ListKind::SmartCollection,
+        rows: games
+            .into_iter()
+            .map(|g| Row { label: stem_of(&g), action: RowAction::Launch(g) })
+            .collect(),
+        selected: 0,
+        scroll: 0,
+        show_art: true,
+        tag: None,
+    }
+}
+
 fn open_collections_index(
     sd: &Sd,
     boxart: &mut HashMap<usize, Art>,
     infos: &mut HashMap<usize, Option<String>>,
+    platforms: &[sd::PlatformEntry],
 ) -> Screen {
     boxart.clear();
     infos.clear();
@@ -5853,6 +5995,23 @@ fn open_collections_index(
             }
         })
         .collect();
+    // built-in franchise collections: shown only when the library has a
+    // match and the user hasn't wiped them.
+    let dismissed = sd.smart_dismissed();
+    let library = smart_library(platforms);
+    for (name, aliases) in SMART_COLLECTIONS {
+        if dismissed.contains(*name) {
+            continue;
+        }
+        let count = smart_matches(&library, aliases).len();
+        if count == 0 {
+            continue;
+        }
+        rows.push(Row {
+            label: format!("{name}  ({count})"),
+            action: RowAction::OpenSmartCollection(name.to_string()),
+        });
+    }
     let paks = installed_paks(sd);
     if !paks.is_empty() {
         rows.push(Row {

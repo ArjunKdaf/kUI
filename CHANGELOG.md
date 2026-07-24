@@ -2,7 +2,24 @@
 
 ## 0.27k (unreleased)
 
+### New
+
+- **Default collections.** kUI ships built-in franchise collections —
+  Mario, Pokémon, Zelda, Mega Man, Castlevania, Final Fantasy, Sonic,
+  Dragon Quest, Metroid, Kirby, and ~30 more — that appear on their own the
+  moment your library has games matching them (matched by name, accent- and
+  case-insensitive: "Pokémon" and "Pokemon" both count, "Rockman" counts as
+  Mega Man, "Dragon Warrior" as Dragon Quest), and stay hidden otherwise.
+  They sit alongside your own collections. Don't want one? Wipe it (Y twice)
+  and it's gone for good — the dismissal is remembered across updates, so it
+  never comes back.
+
 ### Bugfixes
+
+- **The Collections entry always shows in the quick menu.** It used to hide
+  whenever you had no collections — but the quick menu is the only way in,
+  so you could never reach the screen to make your first one. Always present
+  now.
 
 - **The Dude: quest games could silently fail to launch.** (Found via
   Castlevania: Order of Ecclesia and Gran Turismo, 2026-07-23.) Two fixes:
