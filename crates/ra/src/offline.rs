@@ -299,16 +299,14 @@ fn queue_unlock(post_body: &str) {
         return;
     }
     let path = queue_path();
-    if let Some(dir) = path.parent() {
-        if std::fs::create_dir_all(dir).is_err() {
+    if let Some(dir) = path.parent()
+        && std::fs::create_dir_all(dir).is_err() {
             return;
         }
-    }
-    if let Ok(existing) = std::fs::read_to_string(&path) {
-        if existing.lines().any(|l| l.trim() == line) {
+    if let Ok(existing) = std::fs::read_to_string(&path)
+        && existing.lines().any(|l| l.trim() == line) {
             return; // already queued
         }
-    }
     use std::io::Write as _;
     if let Ok(mut f) = std::fs::OpenOptions::new().append(true).create(true).open(&path) {
         let _ = f.write_all(format!("{line}\n").as_bytes());
@@ -383,13 +381,11 @@ pub(crate) fn cached_transport(req: &HttpRequest) -> Result<HttpResponse, String
     };
 
     if !net_failed {
-        if let Ok(resp) = &net {
-            if resp.status == 200 && body_reports_success(&resp.body) {
-                if let Some(key) = &key {
+        if let Ok(resp) = &net
+            && resp.status == 200 && body_reports_success(&resp.body)
+                && let Some(key) = &key {
                     write_cache(key, &resp.body);
                 }
-            }
-        }
         return net;
     }
 
@@ -411,11 +407,10 @@ pub(crate) fn cached_transport(req: &HttpRequest) -> Result<HttpResponse, String
         });
     }
 
-    if let Some(key) = &key {
-        if let Some(body) = read_cache(key) {
+    if let Some(key) = &key
+        && let Some(body) = read_cache(key) {
             return Ok(HttpResponse { status: 200, body });
         }
-    }
 
     // No cache to fall back on: preserve the retryable-error behavior.
     match net {

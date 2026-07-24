@@ -589,7 +589,7 @@ impl Dude {
             let lib: HashSet<&String> = self.library.iter().collect();
             agg.retain(|g| lib.contains(&g.rel));
         }
-        agg.sort_by(|a, b| b.last_played.cmp(&a.last_played));
+        agg.sort_by_key(|g| std::cmp::Reverse(g.last_played));
         self.games = agg;
     }
 

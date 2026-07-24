@@ -338,8 +338,7 @@ unsafe extern "C" fn cb_video_refresh(
             for y in 0..ht {
                 let row =
                     unsafe { std::slice::from_raw_parts(src.add(y * pitch) as *const u16, w) };
-                for x in 0..w {
-                    let p = row[x];
+                for (x, &p) in row.iter().enumerate() {
                     let o = (y * w + x) * 4;
                     h.video[o] = (((p >> 11) & 0x1F) as u8) << 3;
                     h.video[o + 1] = (((p >> 5) & 0x3F) as u8) << 2;
@@ -352,8 +351,7 @@ unsafe extern "C" fn cb_video_refresh(
             for y in 0..ht {
                 let row =
                     unsafe { std::slice::from_raw_parts(src.add(y * pitch) as *const u16, w) };
-                for x in 0..w {
-                    let p = row[x];
+                for (x, &p) in row.iter().enumerate() {
                     let o = (y * w + x) * 4;
                     h.video[o] = (((p >> 10) & 0x1F) as u8) << 3;
                     h.video[o + 1] = (((p >> 5) & 0x1F) as u8) << 3;
@@ -894,7 +892,7 @@ pub fn core_supports_zip(core_path: &Path) -> bool {
             return n as u32;
         }
         // no maps: treat the address as an offset into system RAM
-        const MEMORY_SYSTEM_RAM: c_uint = 2 | 0; // RETRO_MEMORY_SYSTEM_RAM
+        const MEMORY_SYSTEM_RAM: c_uint = 2; // RETRO_MEMORY_SYSTEM_RAM
         let ram = unsafe { (self.get_memory_data)(MEMORY_SYSTEM_RAM) };
         let size = unsafe { (self.get_memory_size)(MEMORY_SYSTEM_RAM) };
         if ram.is_null() || addr >= size {

@@ -12,8 +12,7 @@ pub struct Sd {
 
 #[derive(Debug, Clone)]
 pub struct PlatformEntry {
-    /// Folder name as-is, e.g. "Game Boy (GB)". (Used by Lists/Covers next.)
-    #[allow(dead_code)]
+    /// Folder name as-is, e.g. "Game Boy (GB)".
     pub folder: String,
     /// Display name without the tag, e.g. "Game Boy".
     pub display: String,

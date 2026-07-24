@@ -1716,11 +1716,10 @@ fn run() -> i32 {
                                     font = Some(nf);
                                 }
                             }
-                            "power.profile" => {
-                                if on_device {
+                            "power.profile"
+                                if on_device => {
                                     apply_power_profile(cfg.get_or("power.profile", "auto"));
                                 }
-                            }
                             _ => {}
                         }
                     }
@@ -3107,12 +3106,11 @@ fn run() -> i32 {
                         r.drop_texture(&v.gl, t);
                     }
                 }
-                if confirm && let Some((_, path)) = variants.get(*idx) {
-                    if sd.theme_apply(path).is_ok() && on_device {
+                if confirm && let Some((_, path)) = variants.get(*idx)
+                    && sd.theme_apply(path).is_ok() && on_device {
                         // relaunch to rebuild the resident carousel art
                         return 0;
                     }
-                }
                 if pin_btn {
                     // X: back to the default look (colors + font)
                     cfg.remove_prefix("theme.color");
@@ -4339,7 +4337,7 @@ fn run() -> i32 {
                     let visible = 10usize;
                     for row in 0..visible.min(1 + devs.len()) {
                         let idx = scroll + row;
-                        if idx >= 1 + devs.len() {
+                        if idx > devs.len() {
                             break;
                         }
                         let (label, value) = if idx == 0 {
@@ -4398,7 +4396,7 @@ fn run() -> i32 {
                     let visible = 10usize;
                     for row in 0..visible.min(1 + nets.len()) {
                         let idx = scroll + row;
-                        if idx >= 1 + nets.len() {
+                        if idx > nets.len() {
                             break;
                         }
                         let (label, value) = if idx == 0 {
@@ -6512,7 +6510,7 @@ fn gametime_rows(sd: &Sd) -> (Vec<(String, String)>, String) {
     }
     let n_games = games.len();
     let mut rows: Vec<(String, (u64, u64))> = games.into_iter().collect();
-    rows.sort_by(|a, b| b.1.0.cmp(&a.1.0));
+    rows.sort_by_key(|r| std::cmp::Reverse(r.1.0));
     let rows = rows
         .into_iter()
         .map(|(name, (secs, plays))| {
@@ -6648,7 +6646,7 @@ fn lbutton_name(b: Button) -> &'static str {
 fn lshortcut_disp(v: &str) -> String {
     match v {
         "none" | "" => "None".into(),
-        _ => v.to_uppercase().replace("MENU+", "MENU+"),
+        _ => v.to_uppercase(),
     }
 }
 
@@ -6678,7 +6676,7 @@ fn installed_paks(sd: &Sd) -> Vec<(String, PathBuf)> {
             out.push((name, script));
         }
     }
-    out.sort_by(|a, b| a.0.to_lowercase().cmp(&b.0.to_lowercase()));
+    out.sort_by_key(|a| a.0.to_lowercase());
     out
 }
 
@@ -6750,7 +6748,7 @@ fn pak_categories(all: &[kui_store::Pak]) -> Vec<(String, usize, usize)> {
     names.dedup();
     for c in names {
         let members: Vec<&kui_store::Pak> =
-            all.iter().filter(|p| p.categories.iter().any(|x| *x == c)).collect();
+            all.iter().filter(|p| p.categories.contains(&c)).collect();
         let upd = members
             .iter()
             .filter(|p| {

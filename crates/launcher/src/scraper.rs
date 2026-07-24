@@ -244,7 +244,7 @@ fn scan_platforms(roms_root: &Path) -> Vec<(String, String)> {
         let tag = extract_tag(&name);
         out.push((name, tag));
     }
-    out.sort_by(|a, b| a.0.to_lowercase().cmp(&b.0.to_lowercase()));
+    out.sort_by_key(|a| a.0.to_lowercase());
     out
 }
 
@@ -374,7 +374,7 @@ fn fetch_artwork(ctx: &Ctx, platform_name: &str, tag: &str, art_type: &str) -> R
         if img_path.exists() {
             continue;
         }
-        if count % 5 == 0 {
+        if count.is_multiple_of(5) {
             ctx.set_phase(format!("Downloading {count}/{total}..."));
         }
         // Individual failures are non-fatal, as in the C.
@@ -489,7 +489,7 @@ fn fetch_metadata(ctx: &Ctx, platform_name: &str, tag: &str) -> Result<(), Strin
         }
 
         ctx.set_counts(meta_count, total);
-        if total % 10 == 0 {
+        if total.is_multiple_of(10) {
             ctx.set_phase(format!("Processing {total} ROMs..."));
         }
     }
@@ -533,11 +533,10 @@ fn parse_dat(path: &Path, keyword: &str) -> HashMap<String, Option<String>> {
                 let rest = &line[q1 + 1..];
                 if let Some(q2) = rest.find('"') {
                     let canon = current.as_ref().unwrap();
-                    if let Some(slot) = map.get_mut(canon) {
-                        if slot.is_none() {
+                    if let Some(slot) = map.get_mut(canon)
+                        && slot.is_none() {
                             *slot = Some(rest[..q2].to_string());
                         }
-                    }
                 }
             }
             current = None; // C breaks out of the block here
@@ -719,7 +718,7 @@ fn patch_images(ctx: &Ctx, platform_name: &str) -> Result<(), String> {
             patched += 1;
         }
 
-        if total % 10 == 0 {
+        if total.is_multiple_of(10) {
             ctx.set_phase(format!("Patching {total}..."));
         }
     }

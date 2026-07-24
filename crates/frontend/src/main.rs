@@ -904,9 +904,7 @@ fn run() -> i32 {
                         }
                         _ if is_down
                             && matches!(screen, FeScreen::Game)
-                            && sc_bind
-                                .iter()
-                                .any(|sb| *sb == Some((b, menu_held))) =>
+                            && sc_bind.contains(&Some((b, menu_held))) =>
                         {
                             let i3 = sc_bind
                                 .iter()
@@ -1229,7 +1227,7 @@ fn run() -> i32 {
                             && let Binding::Turbo(bit) = bindings[i2]
                         {
                             // ~10Hz autofire: 3 frames on, 3 off
-                            if (frame_no / 3) % 2 == 0 {
+                            if (frame_no / 3).is_multiple_of(2) {
                                 live_pad |= 1 << bit;
                             } else {
                                 live_pad &= !(1 << bit);
@@ -2231,7 +2229,7 @@ fn run() -> i32 {
                     f.draw(&renderer, gl, &base, 128.0, text_y, MENU_FONT, base_c);
                     f.draw(&renderer, gl, val, 128.0 + bw, text_y, MENU_FONT, theme_c2);
                 } else {
-                    f.draw(&renderer, gl, *item, 128.0, text_y, MENU_FONT, base_c);
+                    f.draw(&renderer, gl, item, 128.0, text_y, MENU_FONT, base_c);
                 }
             }
             // slot preview for Save/Load rows

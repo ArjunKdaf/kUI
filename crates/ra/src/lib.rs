@@ -247,6 +247,7 @@ pub enum RaEvent {
 /// Signature of the guest-memory reader the frontend registers:
 /// `(address, destination buffer) -> bytes actually read`.
 pub type ReadMemoryFn = dyn FnMut(u32, &mut [u8]) -> u32 + 'static;
+type HttpFn = dyn FnMut(&HttpRequest) -> Result<HttpResponse, String> + 'static;
 
 // ---------------------------------------------------------------------------
 // Internal shared state, recovered inside the C callbacks via the rc_client
@@ -266,7 +267,7 @@ struct HttpResponse {
 
 struct ClientState {
     read_memory: Box<ReadMemoryFn>,
-    http: Box<dyn FnMut(&HttpRequest) -> Result<HttpResponse, String> + 'static>,
+    http: Box<HttpFn>,
     events: Vec<RaEvent>,
     /// Result slot for the current synchronous begin_* call.
     pending: Option<Result<(), String>>,
