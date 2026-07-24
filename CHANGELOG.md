@@ -35,3 +35,13 @@
 - **PakDek could not fetch its pak list.** The storefront catalog
   (`storefront.json`) was missing from the repository after the rename;
   restored, so PakDek loads again.
+- **PakDek now removes a pak's root leftovers on uninstall.** Some paks drop
+  files at the SD-card root — config/settings JSON, a stray app binary,
+  `LICENSE`/`README.md`, fonts — at install or first launch; removing the
+  pak used to orphan them there. PakDek now snapshots the root when a pak is
+  installed and, on removal, deletes exactly the entries that appeared
+  afterward. It spares every kUI-owned path and every dotfile, and — when
+  more than one pak is installed — anything another pak might own, so it
+  only deletes what it can attribute unambiguously. Every deletion is
+  logged to `.userdata/shared/pakdek/removals.log`. (Paks installed before
+  this update carry no snapshot, so their existing strays are left as-is.)
