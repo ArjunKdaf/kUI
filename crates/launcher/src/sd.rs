@@ -309,6 +309,16 @@ impl Sd {
         p.is_file().then_some(p)
     }
 
+    /// Collection panel art by slug key, in userdata — kept separate from the
+    /// theme-managed carousel art so themes and OTA updates never touch it.
+    pub fn collection_bg_key(&self, key: &str) -> Option<PathBuf> {
+        let p = self
+            .root
+            .join(".userdata/shared/kui/collections")
+            .join(format!("{key}.png"));
+        p.is_file().then_some(p)
+    }
+
     /// Create a new empty collection; returns its path.
     pub fn collection_create(&self, name: &str) -> Option<PathBuf> {
         let dir = self.root.join("Collections");

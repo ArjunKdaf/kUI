@@ -3644,6 +3644,7 @@ fn run() -> i32 {
                     }
                 } else if !v_rep.holding()
                     && *show_art
+                    && ui_mode != UiMode::Lists
                     && let Some(Row { action: RowAction::Launch(rom), .. }) = rows.get(*selected)
                 {
                     let sel = *selected;
@@ -3657,6 +3658,22 @@ fn run() -> i32 {
                     infos
                         .entry(sel)
                         .or_insert_with(|| sd.game_info_for(rom).map(|i| i.footer()));
+                } else if !v_rep.holding()
+                    && *show_art
+                    && ui_mode != UiMode::Lists
+                    && matches!(kind, ListKind::CollectionsIndex)
+                {
+                    // the collections index shows each collection's own panel
+                    let sel = *selected;
+                    if let Some(key) = rows.get(sel).and_then(|r| collection_key(&r.action)) {
+                        boxart.entry(sel).or_insert_with(|| match sd.collection_bg_key(&key) {
+                            Some(path) => {
+                                loader.request(art::key(K_BOX, sel), path);
+                                Art::Pending
+                            }
+                            None => Art::Missing,
+                        });
+                    }
                 }
             }
         }
@@ -4865,7 +4882,7 @@ fn run() -> i32 {
                             // label (row color) + accent-highlighted value,
                             // the pair centered together
                             let bw = f.measure(&v.gl, &it.label, LIST_FONT);
-                            let gw = f.measure(&v.gl, " ", LIST_FONT);
+                            let gw = f.measure(&v.gl, "  ", LIST_FONT);
                             let vw = f.measure(&v.gl, val, LIST_FONT);
                             let x0 = cx - (bw + gw + vw) / 2.0;
                             f.draw(&r, &v.gl, &it.label, x0, text_y, LIST_FONT, base_c);
@@ -5225,7 +5242,10 @@ fn run() -> i32 {
                 let visible = visible_rows();
                 let list_x = 32.0;
                 let top_off = 16.0;
-                let list_w = if *show_art {
+                // Lists mode is text-only: no box-art panel, even for
+                // collections (whose detail sets show_art).
+                let show_art = *show_art && ui_mode != UiMode::Lists;
+                let list_w = if show_art {
                     sw as f32 * 0.55 - list_x
                 } else if root_panel {
                     sw as f32 * 0.62 - list_x
@@ -5299,7 +5319,7 @@ fn run() -> i32 {
                         }
                     }
                 }
-                if *show_art {
+                if show_art {
                     let show_footer = ui_mode == UiMode::Carousel;
                     let area_x = sw as f32 * 0.58;
                     let area_w = sw as f32 - area_x - 32.0;
@@ -5948,6 +5968,23 @@ fn fold_name(s: &str) -> String {
         .collect()
 }
 
+/// A collection's art key: accent-folded, lowercased, alphanumerics only —
+/// "Pokémon" -> "pokemon", "Yu-Gi-Oh!" -> "yugioh", "Mega Man" -> "megaman".
+fn collection_slug(name: &str) -> String {
+    fold_name(name).chars().filter(|c| c.is_ascii_alphanumeric()).collect()
+}
+
+/// The art key for a collections-index row, if it is a collection.
+fn collection_key(action: &RowAction) -> Option<String> {
+    match action {
+        RowAction::OpenSmartCollection(name) => Some(collection_slug(name)),
+        RowAction::OpenCollection(path) => {
+            path.file_stem().map(|s| collection_slug(&s.to_string_lossy()))
+        }
+        _ => None,
+    }
+}
+
 /// Every ROM in the library as (folded filename, absolute path).
 fn smart_library(platforms: &[sd::PlatformEntry]) -> Vec<(String, PathBuf)> {
     platforms
@@ -6045,7 +6082,7 @@ fn open_collections_index(
         rows,
         selected: 0,
         scroll: 0,
-        show_art: false,
+        show_art: true,
         tag: None,
     }
 }

@@ -2224,7 +2224,7 @@ fn run() -> i32 {
                 let base_c = if i == *sel { theme_c1 } else { theme_c4 };
                 if let Some(val) = &value {
                     // label (row color) + accent-highlighted value
-                    let base = format!("{item} ");
+                    let base = format!("{item}  ");
                     let bw = f.measure(gl, &base, MENU_FONT);
                     f.draw(&renderer, gl, &base, 128.0, text_y, MENU_FONT, base_c);
                     f.draw(&renderer, gl, val, 128.0 + bw, text_y, MENU_FONT, theme_c2);

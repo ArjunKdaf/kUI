@@ -13,8 +13,21 @@
   They sit alongside your own collections. Don't want one? Wipe it (Y twice)
   and it's gone for good — the dismissal is remembered across updates, so it
   never comes back.
+- **Collection background art.** The collections index shows each
+  collection's own artwork panel on the right in Carousel and Covers views
+  (Lists stays text-only), the way platform tiles do. Art is resolved by an
+  accent-folded slug key (`Pokémon` → `pokemon.png`) from
+  `.userdata/shared/kui/collections/`, kept separate from the theme-managed
+  carousel art so themes and updates never touch it — drop a PNG there to
+  set or replace any collection's panel.
 
 ### Bugfixes
+
+- **Lists view no longer shows a box-art panel** inside collections (or any
+  list) — it's text-only now, as intended; Carousel and Covers keep the
+  art.
+- **A little more breathing room** between the WiFi/Bluetooth (quick menu)
+  and Save/Load (in-game) labels and their highlighted values.
 
 - **The Collections entry always shows in the quick menu.** It used to hide
   whenever you had no collections — but the quick menu is the only way in,
