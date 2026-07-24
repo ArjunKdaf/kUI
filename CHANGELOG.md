@@ -28,6 +28,11 @@
 
 ### Bugfixes
 
+- **SSH is off by default again, and boot is faster.** The stock rootfs was
+  auto-starting sshd at boot (`rc.d/S50sshd`) and generating host keys on
+  first boot — slow — regardless of the opt-in setting. kUI now neuters that
+  hook, so SSH only runs when you enable it (Settings → Developer → SSH on
+  boot). Shaves boot time, especially the first boot after a fresh install.
 - **Lists view no longer shows a box-art panel** inside collections (or any
   list) — it's text-only now, as intended; Carousel and Covers keep the
   art.

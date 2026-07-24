@@ -109,6 +109,15 @@ chmod +x /etc/wifi/wifi_init.sh /etc/bluetooth/bt_init.sh 2>/dev/null
 	[ "$(cfg_get radio.bluetooth)" = "on" ] || /etc/bluetooth/bt_init.sh stop >/dev/null 2>&1
 ) &
 
+# The stock rootfs auto-starts sshd at boot (rc.d/S50sshd, procd-managed) and
+# generates host keys on first boot -- slow, and SSH is meant to be opt-in.
+# Neuter that hook once (/etc persists) and stop the server unless the user
+# opted in; on-demand start via /etc/init.d/sshd still works for the toggle.
+if [ -e /etc/rc.d/S50sshd ]; then
+	mv -f /etc/rc.d/S50sshd /etc/rc.d/.dis_S50sshd
+	[ -f "$SHARED_USERDATA_PATH/.ssh_on_boot" ] || /etc/init.d/sshd stop >/dev/null 2>&1
+fi
+
 # Settings -> Developer -> "Start SSH on boot"
 if [ -f "$SHARED_USERDATA_PATH/.ssh_on_boot" ]; then
 	(/etc/init.d/sshd start >/dev/null 2>&1 || /etc/init.d/S50sshd start >/dev/null 2>&1) &

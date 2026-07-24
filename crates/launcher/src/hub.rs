@@ -510,6 +510,12 @@ pub fn pages(device_name: &str, stock_ver: &str, busybox_ver: &str) -> Vec<Page>
                     kind: ItemKind::External,
                 },
                 Item {
+                    label: "SSH on boot",
+                    key: "dev.ssh_on_boot",
+                    desc: "Start the SSH server automatically at boot.",
+                    kind: ItemKind::Choice(&[("off", "Off"), ("on", "On")]),
+                },
+                Item {
                     label: "Disable auto sleep",
                     key: "dev.no_sleep",
                     desc: "Idle no longer suspends. The power button still sleeps.",
@@ -520,12 +526,6 @@ pub fn pages(device_name: &str, stock_ver: &str, busybox_ver: &str) -> Vec<Page>
                     key: "dev.clean_dots",
                     desc: "Press A to delete ._*, .DS_Store and Thumbs.db from the card.",
                     kind: ItemKind::Action,
-                },
-                Item {
-                    label: "SSH on boot",
-                    key: "dev.ssh_on_boot",
-                    desc: "Start the SSH server automatically at boot.",
-                    kind: ItemKind::Choice(&[("off", "Off"), ("on", "On")]),
                 },
             ],
         },
