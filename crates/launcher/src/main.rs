@@ -5453,6 +5453,17 @@ fn run() -> i32 {
             // tray; title (white) top-left for lists without a tag.
             // The switcher shows the focused game's platform the same way.
             let chrome_tag: Option<String> = match &screen {
+                // collections span platforms — show the highlighted game's
+                // code, updating as you scroll (as the switcher does).
+                Screen::List {
+                    kind: ListKind::Collection(_) | ListKind::SmartCollection,
+                    rows,
+                    selected,
+                    ..
+                } => rows.get(*selected).and_then(|row| match &row.action {
+                    RowAction::Launch(p) => sd.tag_of_rom(p),
+                    _ => None,
+                }),
                 Screen::List { tag, .. } => tag.clone(),
                 Screen::Switcher { entries, idx, .. } => {
                     entries.get(*idx).and_then(|e| sd.tag_of_rom(&e.rom))
@@ -5984,19 +5995,23 @@ fn open_collections_index(
 ) -> Screen {
     boxart.clear();
     infos.clear();
-    let mut rows: Vec<Row> = sd
+    // user collections + built-in franchise collections, gathered together
+    // then sorted alphabetically. Built-ins show only when the library has
+    // a match and the user hasn't wiped them.
+    let mut entries: Vec<(String, Row)> = sd
         .collections()
         .into_iter()
         .map(|(name, path)| {
             let count = sd.collection_games(&path).len();
-            Row {
-                label: format!("{name}  ({count})"),
-                action: RowAction::OpenCollection(path),
-            }
+            (
+                name.to_lowercase(),
+                Row {
+                    label: format!("{name}  ({count})"),
+                    action: RowAction::OpenCollection(path),
+                },
+            )
         })
         .collect();
-    // built-in franchise collections: shown only when the library has a
-    // match and the user hasn't wiped them.
     let dismissed = sd.smart_dismissed();
     let library = smart_library(platforms);
     for (name, aliases) in SMART_COLLECTIONS {
@@ -6007,11 +6022,16 @@ fn open_collections_index(
         if count == 0 {
             continue;
         }
-        rows.push(Row {
-            label: format!("{name}  ({count})"),
-            action: RowAction::OpenSmartCollection(name.to_string()),
-        });
+        entries.push((
+            name.to_lowercase(),
+            Row {
+                label: format!("{name}  ({count})"),
+                action: RowAction::OpenSmartCollection(name.to_string()),
+            },
+        ));
     }
+    entries.sort_by(|a, b| a.0.cmp(&b.0));
+    let mut rows: Vec<Row> = entries.into_iter().map(|(_, row)| row).collect();
     let paks = installed_paks(sd);
     if !paks.is_empty() {
         rows.push(Row {
