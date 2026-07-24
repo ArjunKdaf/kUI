@@ -269,8 +269,8 @@ pub mod leds {
         format!("led.{}.{}.{field}", PROFILES[profile].0, LIGHTS[light].0)
     }
 
-    /// Per-profile defaults matching the classic kUI look: Default is dim
-    /// green on Top/Triggers only; Low Battery yellow 6; Critical red 3;
+    /// Per-profile defaults matching the classic kUI look: Default is white
+    /// on Top/Triggers only; Low Battery amber 6; Critical red 3;
     /// Charging green 6; Sleep dark.
     pub fn profile_default(profile: usize, light: usize, field: &str) -> i64 {
         let name = PROFILES.get(profile).map(|(n, _)| *n).unwrap_or("default");
@@ -281,6 +281,7 @@ pub mod leds {
                 // amber, not lemon: RGB emitters render FFFF00 too green
                 "lowbat" => 0xFFA000,
                 "critical" => 0xFF0000,
+                "default" => 0xFFFFFF, // Top + Triggers white by default
                 _ => 0x00FF55,
             },
             "brightness" => match name {

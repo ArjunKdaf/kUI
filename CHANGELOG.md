@@ -21,6 +21,11 @@
   `.system/res/collections/` is used — kept separate from the theme-managed
   carousel art. Drop a PNG in the userdata folder to replace any panel.
 
+- **Default LEDs are white.** The Top and Trigger (L/R) lights now default
+  to white instead of green on the Default profile. Other profiles (charging
+  green, low-battery amber, critical red, sleep dark) are unchanged, and any
+  color you've set yourself still wins.
+
 ### Bugfixes
 
 - **Lists view no longer shows a box-art panel** inside collections (or any
