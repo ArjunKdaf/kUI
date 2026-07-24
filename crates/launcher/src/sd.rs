@@ -309,14 +309,17 @@ impl Sd {
         p.is_file().then_some(p)
     }
 
-    /// Collection panel art by slug key, in userdata — kept separate from the
-    /// theme-managed carousel art so themes and OTA updates never touch it.
+    /// Collection panel art by slug key. A user override in userdata wins;
+    /// otherwise the shipped default in .system/res/collections is used.
+    /// Kept separate from the theme-managed carousel art.
     pub fn collection_bg_key(&self, key: &str) -> Option<PathBuf> {
-        let p = self
-            .root
-            .join(".userdata/shared/kui/collections")
-            .join(format!("{key}.png"));
-        p.is_file().then_some(p)
+        let file = format!("{key}.png");
+        let user = self.root.join(".userdata/shared/kui/collections").join(&file);
+        if user.is_file() {
+            return Some(user);
+        }
+        let sys = self.root.join(".system/res/collections").join(&file);
+        sys.is_file().then_some(sys)
     }
 
     /// Create a new empty collection; returns its path.

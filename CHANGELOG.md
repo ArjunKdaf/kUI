@@ -15,11 +15,11 @@
   never comes back.
 - **Collection background art.** The collections index shows each
   collection's own artwork panel on the right in Carousel and Covers views
-  (Lists stays text-only), the way platform tiles do. Art is resolved by an
-  accent-folded slug key (`Pokémon` → `pokemon.png`) from
-  `.userdata/shared/kui/collections/`, kept separate from the theme-managed
-  carousel art so themes and updates never touch it — drop a PNG there to
-  set or replace any collection's panel.
+  (Lists stays text-only), the way platform tiles do. Art resolves by an
+  accent-folded slug key (`Pokémon` → `pokemon.png`): a user override in
+  `.userdata/shared/kui/collections/` wins, otherwise the shipped default in
+  `.system/res/collections/` is used — kept separate from the theme-managed
+  carousel art. Drop a PNG in the userdata folder to replace any panel.
 
 ### Bugfixes
 
