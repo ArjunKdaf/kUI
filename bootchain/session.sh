@@ -83,18 +83,26 @@ fi
 
 # ---- radios -----------------------------------------------------------
 # our radio scripts double as the /etc init scripts: kuid and the UI
-# toggles call those paths, and /etc is volatile on this rootfs
+# toggles call those paths (/etc is a persistent overlay on this device)
 mkdir -p /etc/wifi /etc/bluetooth 2>/dev/null
 cp -f "$BOOT_DIR/wifi_init.sh" /etc/wifi/wifi_init.sh
 cp -f "$BOOT_DIR/bt_init.sh" /etc/bluetooth/bt_init.sh
 chmod +x /etc/wifi/wifi_init.sh /etc/bluetooth/bt_init.sh 2>/dev/null
 
+# The stock rootfs auto-starts wpa_supplicant at boot (rc.d/S96, procd-
+# managed so a kill just respawns), lighting wifi up for ~20s before we can
+# tear it down. Neuter that hook once — /etc persists — so radios come up
+# only on request. On-demand wifi still works: wifi_init.sh calls
+# /etc/init.d/wpa_supplicant, which stays in place.
+[ -e /etc/rc.d/S96wpa_supplicant ] \
+	&& mv -f /etc/rc.d/S96wpa_supplicant /etc/rc.d/.dis_S96wpa_supplicant
+
 # kui.cfg is the only authority; absent key means off
 [ "$(cfg_get radio.wifi)" = "on" ] && "$BOOT_DIR/wifi_init.sh" start >/dev/null 2>&1 &
 [ "$(cfg_get radio.bluetooth)" = "on" ] && "$BOOT_DIR/bt_init.sh" start >/dev/null 2>&1 &
 
-# stock init (read-only rootfs, runs before us) brings wifi up ~15s into
-# boot on its own; ONE delayed teardown after it settles - no polling
+# safety net for the ONE first boot after install, when the stock hook ran
+# before we neutered it: a single delayed teardown if the user isn't opted in
 (
 	sleep 25
 	[ "$(cfg_get radio.wifi)" = "on" ] || /etc/wifi/wifi_init.sh stop >/dev/null 2>&1

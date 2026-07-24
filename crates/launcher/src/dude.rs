@@ -197,12 +197,6 @@ const WEEKLY_DEFS: [(&str, i64, i64, i64); 12] = [
     ("Play 7 different games", 300, 0, 7),
 ];
 
-// Extensions that are never games (artwork, saves, metadata, leftovers)
-const JUNK_EXTS: [&str; 20] = [
-    "txt", "md", "png", "jpg", "jpeg", "gif", "bmp", "db", "xml", "dat", "cfg", "ini", "sav",
-    "srm", "bak", "log", "json", "nfo", "html", "pdf",
-];
-
 const MENU: [&str; 10] = [
     "Talk",
     "Dude Quests",
@@ -315,6 +309,11 @@ impl Default for State {
 pub struct Dude {
     shared: PathBuf,
     roms_root: PathBuf,
+    /// Playable games (rel paths) from the launcher's scan — already filtered
+    /// to platforms that have both ROMs and an emulator. The Dude picks its
+    /// quest games from exactly this list, so it never suggests a game the
+    /// launcher can't show or launch.
+    library: Vec<String>,
     tz_off: i64,
     rng: Lcg,
 
@@ -368,10 +367,11 @@ impl Dude {
     /// Load state, ingest the playlog, refresh daily/weekly/achievements/
     /// streak, credit any pending quest and session XP, generate dude quests
     /// and the entry greeting.
-    pub fn open(shared: &Path, roms_root: &Path) -> Dude {
+    pub fn open(shared: &Path, roms_root: &Path, library: Vec<String>) -> Dude {
         let mut d = Dude {
             shared: shared.to_path_buf(),
             roms_root: roms_root.to_path_buf(),
+            library,
             tz_off: tz_offset_secs(),
             rng: Lcg::from_time(),
             st: State::default(),
@@ -582,12 +582,12 @@ impl Dude {
             }
         }
         agg.retain(|g| g.play_time >= MIN_PLAY_SECS);
-        // Skip games whose rom vanished (renamed/moved) — a Revisit/Marathon
-        // quest would otherwise launch a dead path.
-        let roms_ok = self.roms_root.is_dir();
-        if roms_ok {
-            let root = self.roms_root.clone();
-            agg.retain(|g| root.join(&g.rel).exists());
+        // Keep only games still in the launcher's playable library (ROM
+        // present AND an emulator for the platform) — so a Revisit/Marathon
+        // quest never launches a dead path or an unplayable platform.
+        if !self.library.is_empty() {
+            let lib: HashSet<&String> = self.library.iter().collect();
+            agg.retain(|g| lib.contains(&g.rel));
         }
         agg.sort_by(|a, b| b.last_played.cmp(&a.last_played));
         self.games = agg;
@@ -1388,149 +1388,29 @@ impl Dude {
     /// Mirrors the C scan: tagged platform folders only, depth <= 3, skip
     /// hidden entries (covers `.media`), junk extensions, cue/m3u data
     /// tracks; inside "(PORTS)" only top-level `.sh` launchers count.
+    /// Reservoir-pick one game from the launcher's playable library (the same
+    /// games the launcher lists), skipping already-quested and — when asked —
+    /// already-played entries.
     fn dq_random_rom(&mut self, skip_played: bool, played: &HashSet<String>) -> Option<String> {
+        let already: HashSet<String> = self.dude_quests.iter().map(|q| q.rel.clone()).collect();
         let mut count: u32 = 0;
         let mut pick: Option<String> = None;
-        let picked: Vec<String> = self.dude_quests.iter().map(|q| q.rel.clone()).collect();
-
-        let root = self.roms_root.clone();
-        let entries = fs::read_dir(&root).ok()?;
-        for e in entries.flatten() {
-            let name = e.file_name().to_string_lossy().into_owned();
-            if name.starts_with('.') || !name.contains('(') {
+        for i in 0..self.library.len() {
+            let eligible = {
+                let rel = &self.library[i];
+                !already.contains(rel) && !(skip_played && played.contains(rel))
+            };
+            if !eligible {
                 continue;
             }
-            if !e.path().is_dir() {
-                continue;
+            count += 1;
+            if self.rng.below(count) == 0 {
+                pick = Some(self.library[i].clone());
             }
-            let ports_mode = name.contains("(PORTS)");
-            self.dq_scan_dir(
-                &e.path(),
-                &name,
-                0,
-                ports_mode,
-                skip_played,
-                played,
-                &picked,
-                &mut count,
-                &mut pick,
-            );
         }
         pick
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn dq_scan_dir(
-        &mut self,
-        abs_dir: &Path,
-        rel_dir: &str,
-        depth: u32,
-        ports_mode: bool,
-        skip_played: bool,
-        played: &HashSet<String>,
-        picked: &[String],
-        count: &mut u32,
-        pick: &mut Option<String>,
-    ) {
-        if depth > 3 {
-            return;
-        }
-        let Ok(rd) = fs::read_dir(abs_dir) else {
-            return;
-        };
-        let entries: Vec<_> = rd.flatten().collect();
-
-        // First pass: cue/m3u presence decides which siblings are data tracks.
-        let mut has_cue = false;
-        let mut has_m3u = false;
-        for e in &entries {
-            let n = e.file_name().to_string_lossy().into_owned();
-            if n.starts_with('.') {
-                continue;
-            }
-            if let Some(ext) = ext_of(&n) {
-                if ext.eq_ignore_ascii_case("cue") {
-                    has_cue = true;
-                } else if ext.eq_ignore_ascii_case("m3u") {
-                    has_m3u = true;
-                }
-            }
-        }
-
-        for e in &entries {
-            let n = e.file_name().to_string_lossy().into_owned();
-            if n.starts_with('.') {
-                continue;
-            }
-            let abs = e.path();
-            let rel = format!("{rel_dir}/{n}");
-            let Ok(md) = fs::metadata(&abs) else {
-                continue;
-            };
-            if md.is_dir() {
-                if ports_mode && depth >= 1 {
-                    continue; // port data dir — skip
-                }
-                self.dq_scan_dir(
-                    &abs,
-                    &rel,
-                    depth + 1,
-                    ports_mode,
-                    skip_played,
-                    played,
-                    picked,
-                    count,
-                    pick,
-                );
-                continue;
-            }
-            let Some(ext) = ext_of(&n) else {
-                continue;
-            };
-            if ports_mode {
-                if ext.eq_ignore_ascii_case("sh") {
-                    self.dq_consider(&rel, skip_played, played, picked, count, pick);
-                }
-                continue;
-            }
-            if JUNK_EXTS.iter().any(|j| ext.eq_ignore_ascii_case(j)) {
-                continue;
-            }
-            // CD image data tracks: the playable entry is the .cue (or .m3u)
-            if has_cue
-                && ["bin", "img", "sub", "wav"]
-                    .iter()
-                    .any(|x| ext.eq_ignore_ascii_case(x))
-            {
-                continue;
-            }
-            if has_m3u && ext.eq_ignore_ascii_case("cue") {
-                continue;
-            }
-            self.dq_consider(&rel, skip_played, played, picked, count, pick);
-        }
-    }
-
-    fn dq_consider(
-        &mut self,
-        rel: &str,
-        skip_played: bool,
-        played: &HashSet<String>,
-        picked: &[String],
-        count: &mut u32,
-        pick: &mut Option<String>,
-    ) {
-        if picked.iter().any(|p| p == rel) {
-            return; // never dup an already-listed quest
-        }
-        if skip_played && played.contains(rel) {
-            return;
-        }
-        *count += 1;
-        if self.rng.below(*count) == 0 {
-            *pick = Some(rel.to_string());
-        }
-    }
 
     /// Generate 2 Revisit + 2 Marathon + 2 Try + 1 Mystery, with same-game
     /// collision avoidance; degrades gracefully with a small library.
@@ -1904,12 +1784,6 @@ fn get_display_name(rel: &str) -> String {
         name = work;
     }
     name.trim_end().to_string()
-}
-
-fn ext_of(name: &str) -> Option<&str> {
-    let dot = name.rfind('.')?;
-    let ext = &name[dot + 1..];
-    (!ext.is_empty()).then_some(ext)
 }
 
 // =============================================

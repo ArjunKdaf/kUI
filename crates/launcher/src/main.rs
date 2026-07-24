@@ -36,6 +36,8 @@ const DIM: f32 = 0.45;
 
 const ROW_H: f32 = 64.0;
 const PILL_H: u32 = 52;
+/// How long the launch-failure toast stays up.
+const TOAST_TIME: std::time::Duration = std::time::Duration::from_millis(2500);
 const LIST_FONT: u32 = 30;
 const META_FONT: u32 = 22;
 
@@ -283,6 +285,9 @@ enum Screen {
 
 struct QuickItem {
     label: String,
+    /// Optional accent-highlighted value drawn after the label (e.g. the
+    /// radio state "On"/"Off"/"...").
+    value: Option<String>,
     desc: &'static str,
     action: QuickAction,
 }
@@ -414,6 +419,7 @@ fn quick_items(sd: &Sd, on_device: bool) -> Vec<QuickItem> {
     if !sd.recents().is_empty() {
         v.push(QuickItem {
             label: "Recents".into(),
+            value: None,
             desc: "Recently played games",
             action: QuickAction::Recents,
         });
@@ -421,29 +427,33 @@ fn quick_items(sd: &Sd, on_device: bool) -> Vec<QuickItem> {
     if !sd.collections().is_empty() {
         v.push(QuickItem {
             label: "Collections".into(),
+            value: None,
             desc: "Your game collections",
             action: QuickAction::Collections,
         });
     }
     v.push(QuickItem {
         label: "Control Panel".into(),
+        value: None,
         desc: "Every setting and tool in one place",
         action: QuickAction::Settings,
     });
     let wifi_on = on_device && proc_running("wpa_supplicant");
     let bt_on = on_device && proc_running("bluetoothd");
     v.push(QuickItem {
-        label: format!("WiFi: {}", if wifi_on { "On" } else { "Off" }),
+        label: "WiFi".into(),
+        value: Some(if wifi_on { "On" } else { "Off" }.into()),
         desc: "Takes a few seconds to change.",
         action: QuickAction::Wifi,
     });
     v.push(QuickItem {
-        label: format!("Bluetooth: {}", if bt_on { "On" } else { "Off" }),
+        label: "Bluetooth".into(),
+        value: Some(if bt_on { "On" } else { "Off" }.into()),
         desc: "Takes a few seconds to change.",
         action: QuickAction::Bluetooth,
     });
-    v.push(QuickItem { label: "Reboot".into(), desc: "Restart the device", action: QuickAction::Reboot });
-    v.push(QuickItem { label: "Poweroff".into(), desc: "Shut down safely", action: QuickAction::Poweroff });
+    v.push(QuickItem { label: "Reboot".into(), value: None, desc: "Restart the device", action: QuickAction::Reboot });
+    v.push(QuickItem { label: "Poweroff".into(), value: None, desc: "Shut down safely", action: QuickAction::Poweroff });
     v
 }
 
@@ -593,6 +603,13 @@ fn run() -> i32 {
     if font.is_none() {
         eprintln!("no font found under {sd_root}/.system/res — text disabled");
     }
+    let pill_inner = match Pill::new(&v.gl, PILL_H - 16) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("pill init failed: {e}");
+            return EXIT_QUIT;
+        }
+    };
     let pill = match Pill::new(&v.gl, PILL_H) {
         Ok(p) => p,
         Err(e) => {
@@ -754,7 +771,7 @@ fn run() -> i32 {
                 .file_stem()
                 .map(|s2| s2.to_string_lossy().into_owned())
                 .unwrap_or_default();
-            if let Some(code) = launch_rom(&sd, &fe_cfg, &rom, &label, on_device) {
+            if let LaunchResult::Started(code) = launch_rom(&sd, &fe_cfg, &rom, &label, on_device) {
                 return code;
             }
         }
@@ -908,6 +925,8 @@ fn run() -> i32 {
     // (is_brightness, visible until) — the value is read live from kuid's
     // /tmp/kui state files each frame the bar is up
     let mut osd: Option<(bool, Instant)> = None;
+    // (message, visible until) — launch failures surface here
+    let mut toast: Option<(String, Instant)> = None;
     // which volume key is held (kuid repeats the apply; we keep the bar up)
     let mut vol_held: i32 = 0;
     let mut last_wipe = Instant::now() - PRESS_COOLDOWN;
@@ -1226,9 +1245,18 @@ fn run() -> i32 {
             }
             Screen::Dude => {
                 if dude_state.is_none() {
+                    // the Dude's game pool = the launcher's playable library
+                    // (platforms already filtered to those with an emulator)
+                    let library: Vec<String> = platforms
+                        .iter()
+                        .flat_map(|p| {
+                            p.roms.iter().map(move |r| format!("{}/{}", p.folder, r))
+                        })
+                        .collect();
                     let d = dude::Dude::open(
                         &sd.root.join(".userdata/shared"),
                         &sd.root.join("Roms"),
+                        library,
                     );
                     dude_text = d.greeting();
                     dude_state = Some(d);
@@ -1271,10 +1299,12 @@ fn run() -> i32 {
                                         .map(|s| s.to_string_lossy().into_owned())
                                         .unwrap_or_default();
                                     let _ = std::fs::write("/tmp/kui_dude", "");
-                                    if let Some(code) =
-                                        launch_rom(&sd, &cfg, &rom, &label, on_device)
-                                    {
-                                        return code;
+                                    match launch_rom(&sd, &cfg, &rom, &label, on_device) {
+                                        LaunchResult::Started(code) => return code,
+                                        LaunchResult::Fail(msg) => {
+                                            toast = Some((msg, now_hint() + TOAST_TIME));
+                                        }
+                                        LaunchResult::NoOp => {}
                                     }
                                 }
                             }
@@ -3124,8 +3154,12 @@ fn run() -> i32 {
                 {
                     // launch-origin memory: leaving this game returns here
                     let _ = std::fs::write("/tmp/kui_switcher", "");
-                    if let Some(code) = launch_rom(&sd, &cfg, &ent.rom, &ent.alias, on_device) {
-                        return code;
+                    match launch_rom(&sd, &cfg, &ent.rom, &ent.alias, on_device) {
+                        LaunchResult::Started(code) => return code,
+                        LaunchResult::Fail(msg) => {
+                            toast = Some((msg, now_hint() + TOAST_TIME));
+                        }
+                        LaunchResult::NoOp => {}
                     }
                     let _ = std::fs::remove_file("/tmp/kui_switcher");
                 }
@@ -3155,18 +3189,18 @@ fn run() -> i32 {
                         let name = if is_wifi { "WiFi" } else { "Bluetooth" };
                         let daemon = if is_wifi { "wpa_supplicant" } else { "bluetoothd" };
                         let on = proc_running(daemon);
+                        it.label = name.into();
                         match *pending {
                             Some((pw, target, deadline)) if pw == is_wifi => {
                                 if on == target || now > deadline {
-                                    it.label =
-                                        format!("{name}: {}", if on { "On" } else { "Off" });
+                                    it.value = Some(if on { "On" } else { "Off" }.into());
                                     *pending = None;
                                 } else {
-                                    it.label = format!("{name}: ...");
+                                    it.value = Some("...".into());
                                 }
                             }
                             _ => {
-                                it.label = format!("{name}: {}", if on { "On" } else { "Off" });
+                                it.value = Some(if on { "On" } else { "Off" }.into());
                             }
                         }
                     }
@@ -3219,13 +3253,13 @@ fn run() -> i32 {
                             // the action to the wrong direction.
                             let is_wifi =
                                 matches!(items[*selected].action, QuickAction::Wifi);
-                            let label = items[*selected].label.clone();
-                            let verb = if label.ends_with("Off") {
-                                Some("start")
-                            } else if label.ends_with("On") {
-                                Some("stop")
-                            } else {
-                                None // "...": transition in progress
+                            // the verb follows the VALUE the user sees, not an
+                            // instant probe; pressing mid-transition ("...")
+                            // is ignored so teardown races can't misfire
+                            let verb = match items[*selected].value.as_deref() {
+                                Some("Off") => Some("start"),
+                                Some("On") => Some("stop"),
+                                _ => None,
                             };
                             if let Some(verb) = verb {
                                 if on_device {
@@ -3246,11 +3280,7 @@ fn run() -> i32 {
                                         if verb == "start" { "on" } else { "off" },
                                     );
                                     let _ = cfg.save();
-                                    items[*selected].label = if is_wifi {
-                                        "WiFi: ...".into()
-                                    } else {
-                                        "Bluetooth: ...".into()
-                                    };
+                                    items[*selected].value = Some("...".into());
                                     *pending = Some((
                                         is_wifi,
                                         verb == "start",
@@ -3367,10 +3397,12 @@ fn run() -> i32 {
                             v_rep.clear();
                         }
                         RowAction::Launch(rom) => {
-                            if let Some(code) =
-                                launch_rom(&sd, &cfg, rom, &rows[*selected].label, on_device)
-                            {
-                                return code;
+                            match launch_rom(&sd, &cfg, rom, &rows[*selected].label, on_device) {
+                                LaunchResult::Started(code) => return code,
+                                LaunchResult::Fail(msg) => {
+                                    toast = Some((msg, now_hint() + TOAST_TIME));
+                                }
+                                LaunchResult::NoOp => {}
                             }
                         }
                         RowAction::OpenCollection(path) => {
@@ -4799,12 +4831,19 @@ fn run() -> i32 {
                         let lh = f.line_height(LIST_FONT);
                         let pill_y = y + (ROW_H - PILL_H as f32) / 2.0;
                         let text_y = pill_y + (PILL_H as f32 - lh) / 2.0;
-                        let tw = f.measure(&v.gl, &it.label, LIST_FONT);
-                        if i == *selected {
-                            let sel_c = theme.c1;
-                            f.draw(&r, &v.gl, &it.label, cx - tw / 2.0, text_y, LIST_FONT, sel_c);
+                        let base_c = if i == *selected { theme.c1 } else { theme.c4 };
+                        if let Some(val) = it.value.as_deref() {
+                            // label (row color) + accent-highlighted value,
+                            // the pair centered together
+                            let bw = f.measure(&v.gl, &it.label, LIST_FONT);
+                            let gw = f.measure(&v.gl, " ", LIST_FONT);
+                            let vw = f.measure(&v.gl, val, LIST_FONT);
+                            let x0 = cx - (bw + gw + vw) / 2.0;
+                            f.draw(&r, &v.gl, &it.label, x0, text_y, LIST_FONT, base_c);
+                            f.draw(&r, &v.gl, val, x0 + bw + gw, text_y, LIST_FONT, theme.c2);
                         } else {
-                            f.draw(&r, &v.gl, &it.label, cx - tw / 2.0, text_y, LIST_FONT, theme.c4);
+                            let tw = f.measure(&v.gl, &it.label, LIST_FONT);
+                            f.draw(&r, &v.gl, &it.label, cx - tw / 2.0, text_y, LIST_FONT, base_c);
                         }
                     }
                 }
@@ -5600,6 +5639,31 @@ fn run() -> i32 {
             }
         }
 
+        // launch-failure toast: the frontend's two-pill notification look
+        if let Some((msg, until)) = &toast {
+            if Instant::now() > *until {
+                toast = None;
+            } else if let Some(f) = font.as_mut() {
+                let tw = f.measure(&v.gl, msg, 24);
+                let inner_w = tw + 40.0;
+                let outer_w = inner_w + 16.0;
+                let ox = (sw as f32 - outer_w) / 2.0;
+                let oy = sh as f32 - 180.0;
+                pill.draw(&r, &v.gl, ox, oy, outer_w, theme.c1);
+                pill_inner.draw(&r, &v.gl, ox + 8.0, oy + 8.0, inner_w, theme.c2);
+                let lh = f.line_height(24);
+                f.draw(
+                    &r,
+                    &v.gl,
+                    msg,
+                    ox + 8.0 + (inner_w - tw) / 2.0,
+                    oy + 8.0 + (36.0 - lh) / 2.0,
+                    24,
+                    cfg.get_color("theme.color8", 0x000000),
+                );
+            }
+        }
+
         unsafe { v.gl.flush() };
         v.present();
         if first_frame_at.is_none() {
@@ -5809,11 +5873,19 @@ fn open_collections_index(
     }
 }
 
-/// Write /tmp/next + recents and return exit code 0 (device); log-only on desktop.
-fn launch_rom(sd: &Sd, cfg: &kui_config::Config, rom: &PathBuf, label: &str, on_device: bool) -> Option<i32> {
+/// Outcome of a launch attempt: Fail carries a user-facing message the
+/// caller shows as a toast (failures used to die silently on stderr).
+enum LaunchResult {
+    Started(i32),
+    Fail(String),
+    NoOp,
+}
+
+/// Write /tmp/next + recents and return the exit code (device); log-only on desktop.
+fn launch_rom(sd: &Sd, cfg: &kui_config::Config, rom: &PathBuf, label: &str, on_device: bool) -> LaunchResult {
     let Some(tag) = sd.tag_of_rom(rom) else {
         eprintln!("no platform tag for {rom:?}");
-        return None;
+        return LaunchResult::Fail("Can't launch: no platform (TAG) folder".into());
     };
     // native frontend is THE frontend; paks only serve platforms
     // without a libretro core (standalone emulators)
@@ -5835,7 +5907,7 @@ fn launch_rom(sd: &Sd, cfg: &kui_config::Config, rom: &PathBuf, label: &str, on_
         )
     } else {
         eprintln!("no core or emu pak for tag {tag}");
-        return None;
+        return LaunchResult::Fail(format!("No emulator installed for {tag}"));
     };
     println!("launching: {cmd}");
     if on_device {
@@ -5869,14 +5941,14 @@ fn launch_rom(sd: &Sd, cfg: &kui_config::Config, rom: &PathBuf, label: &str, on_
             );
         }
         match std::fs::File::create("/tmp/next").and_then(|mut f| f.write_all(cmd.as_bytes())) {
-            Ok(()) => Some(0),
+            Ok(()) => LaunchResult::Started(0),
             Err(e) => {
                 eprintln!("writing /tmp/next failed: {e}");
-                None
+                LaunchResult::Fail(format!("Launch failed: {e}"))
             }
         }
     } else {
-        None
+        LaunchResult::NoOp
     }
 }
 

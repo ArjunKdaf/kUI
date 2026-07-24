@@ -2188,15 +2188,22 @@ fn run() -> i32 {
             // chrome: rom name top-left (white), hints bottom (ids in c1)
             f.draw(&renderer, gl, &stem, 24.0, 20.0, 24, [1.0, 1.0, 1.0, 1.0]);
             {
-                let hints: &[(&str, &str)] = &[("A", "Okay"), ("B", "Back")];
+                let mut hints: Vec<(&str, &str)> = Vec::new();
+                if matches!(menu_items[*sel], "Save" | "Load") {
+                    hints.push(("< / >", "Slot"));
+                } else if menu_items[*sel] == "Continue" && core.disc_count() > 1 {
+                    hints.push(("< / >", "Disc"));
+                }
+                hints.push(("A", "Okay"));
+                hints.push(("B", "Back"));
                 let size = 22u32;
                 let mut wsum = 0.0;
-                for (k, l) in hints {
+                for (k, l) in &hints {
                     wsum += f.measure(gl, k, size) + 8.0 + f.measure(gl, l, size) + 28.0;
                 }
                 let mut hx = sw as f32 - 16.0 - (wsum - 28.0);
                 let hy = sh as f32 - 44.0;
-                for (k, l) in hints {
+                for (k, l) in &hints {
                     f.draw(&renderer, gl, k, hx, hy, size, theme_c1);
                     hx += f.measure(gl, k, size) + 8.0;
                     f.draw(&renderer, gl, l, hx, hy, size, theme_c6);
@@ -2209,17 +2216,22 @@ fn run() -> i32 {
                 let lh = f.line_height(MENU_FONT);
                 let pill_y = y + (ROW_H - PILL_H as f32) / 2.0;
                 let text_y = pill_y + (PILL_H as f32 - lh) / 2.0;
-                let label = if matches!(*item, "Save" | "Load") {
-                    format!("{item}  < {} >", slot + 1)
+                let value: Option<String> = if matches!(*item, "Save" | "Load") {
+                    Some(format!("{}", slot + 1))
                 } else if *item == "Continue" && core.disc_count() > 1 {
-                    format!("{item}  < Disc {} >", core.disc_index() + 1)
+                    Some(format!("Disc {}", core.disc_index() + 1))
                 } else {
-                    (*item).to_string()
+                    None
                 };
-                if i == *sel {
-                    f.draw(&renderer, gl, &label, 128.0, text_y, MENU_FONT, theme_c1);
+                let base_c = if i == *sel { theme_c1 } else { theme_c4 };
+                if let Some(val) = &value {
+                    // label (row color) + accent-highlighted value
+                    let base = format!("{item} ");
+                    let bw = f.measure(gl, &base, MENU_FONT);
+                    f.draw(&renderer, gl, &base, 128.0, text_y, MENU_FONT, base_c);
+                    f.draw(&renderer, gl, val, 128.0 + bw, text_y, MENU_FONT, theme_c2);
                 } else {
-                    f.draw(&renderer, gl, &label, 128.0, text_y, MENU_FONT, theme_c4);
+                    f.draw(&renderer, gl, *item, 128.0, text_y, MENU_FONT, base_c);
                 }
             }
             // slot preview for Save/Load rows

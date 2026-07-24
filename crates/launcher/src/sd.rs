@@ -411,11 +411,24 @@ impl Sd {
         Ok(())
     }
 
-    /// The "(TAG)" of the platform folder containing a ROM path.
+    /// The "(TAG)" of the platform folder above a ROM path. Walks up so
+    /// nested layouts (a disks/ subfolder, a per-game folder) still
+    /// resolve to their platform.
     pub fn tag_of_rom(&self, rom_abs: &Path) -> Option<String> {
-        let dir = rom_abs.parent()?.file_name()?.to_string_lossy().into_owned();
-        let (_, tag) = split_tag(&dir);
-        (!tag.is_empty()).then_some(tag)
+        let mut dir = rom_abs.parent();
+        while let Some(d) = dir {
+            if d == self.root {
+                break;
+            }
+            if let Some(name) = d.file_name() {
+                let (_, tag) = split_tag(&name.to_string_lossy());
+                if !tag.is_empty() {
+                    return Some(tag);
+                }
+            }
+            dir = d.parent();
+        }
+        None
     }
 }
 
