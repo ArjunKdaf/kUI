@@ -1,0 +1,1913 @@
+{
+  "name": "kUI PakDek",
+  "url": "https://github.com/ArjunKdaf/kUI",
+  "paks": [
+    {
+      "id": "jF8cW5zN2m",
+      "storefront_name": "Grout",
+      "name": "Grout",
+      "version": "v4.8.1.0",
+      "type": "TOOL",
+      "description": "A RomM client for NextUI, muOS, Knulli, and Spruce v4.",
+      "author": "The RomM Team",
+      "repo_url": "https://github.com/rommapp/grout",
+      "previous_repo_urls": null,
+      "release_filename": "Grout.pak.zip",
+      "changelog": {
+        "v1.0.0": "Initial release of Grout!",
+        "v1.2.0": "Platform mapping tweaks, multi-file ROM downloads, bug fixes and more!",
+        "v1.2.1": "Quick fix for not evaluating all art paths.",
+        "v1.2.2": "Quick fix for not evaluating all art paths.",
+        "v1.2.3": "Background art downloads moved to the foreground due to inadvertent early termination.",
+        "v1.2.4": "Correct check for the muOS info folder to determine the proper mnt path to use.",
+        "v1.3.0": "New Year New Me",
+        "v1.3.1": "Add missing languages to settings",
+        "v1.3.2": "Bug fixes and performance tweaks.",
+        "v1.3.3": "Added auto updater function for muOS and Knulli plus a number of performance / organizational fixes.",
+        "v1.3.4": "Fixed regression with multi-disk downloads.",
+        "v1.3.5": "Fix auto save sync from hashing files unnecessarily ",
+        "v1.3.6": "App didn't exit on update.",
+        "v1.3.8": "Fixed a boo-boo introduced on NextUI with the new font icons.",
+        "v1.3.9": "Tried to be cute with pagination and lost. Fix for Grout not retrieving large ROM collections.",
+        "v1.4.0": "Spruce v4 support (thanks @pawndev!), select / deselect all and fix for input mapping regression.",
+        "v1.4.1": "New local cache for a sweet sweet performance boost",
+        "v1.4.2": "Fix for incorrect PICO-8 mapping.",
+        "v4.6.0.0": "Bunch of great changes by even greater people <3",
+        "v4.6.0.1": "Add missing NDS .dsv save file extension",
+        "v4.6.1.0": "Added custom platform mapping entry via keyboard",
+        "v4.6.1.1": "Add game information to corresponding gamelist.xml for ROCKNIX and Knulli - @pawndev",
+        "v4.6.1.2": "Fix for games with multiple downloads",
+        "v4.6.1.3": "Move QR code to its own screen for better performance.",
+        "v4.6.1.4": "Added support for TrimUI Stock OS. Thanks @malkavi",
+        "v4.6.1.5": "Fix for collections not appearing on main menu immediately after enabling",
+        "v4.6.1.6": "Bug fix for BIOS download folder discrepancy when info metadata not present",
+        "v4.6.1.7": "Added in the ability to filter the games list with more than just search.",
+        "v4.6.1.8": "Hotfix for Spruce launch script. Sorry about that!",
+        "v4.7.0.0": "Support for new features in RomM v4.7.0. See the changelog for more info.",
+        "v4.8.0.0": "Support for RomM v4.8.0",
+        "v4.8.0.1": "Add GKD Pixel 2 support on Spruce. Thanks for the assist theycallmeboxy!",
+        "v4.8.0.1-beta.5": "CI work complete. We just need all hands on deck.",
+        "v4.8.1.0": "Add GKD Pixel 2 support on Spruce. Thanks for the assist theycallmeboxy!"
+      },
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": [],
+      "platforms": [
+        "tg5040",
+        "tg5050"
+      ],
+      "categories": [
+        "ROM Management"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "yF1cQ7nW3t",
+      "storefront_name": "SFTPGO Server",
+      "name": "FTP Server",
+      "version": "0.7.0",
+      "type": "TOOL",
+      "description": "Manages the FTP Server",
+      "author": "josegonzalez",
+      "repo_url": "https://github.com/josegonzalez/minui-sftpgo-server-pak",
+      "previous_repo_urls": null,
+      "release_filename": "FTP.Server.pak.zip",
+      "changelog": null,
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": null,
+      "platforms": [
+        "miyoomini",
+        "my282",
+        "my355",
+        "rg35xxplus",
+        "tg5040",
+        "tg5050"
+      ],
+      "categories": [
+        "File Management"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "kB8vT2gR5m",
+      "storefront_name": "Dufs HTTP Server",
+      "name": "HTTP Server",
+      "version": "0.10.0",
+      "type": "TOOL",
+      "description": "Manages the Dufs HTTP Server",
+      "author": "josegonzalez",
+      "repo_url": "https://github.com/josegonzalez/minui-dufs-server-pak",
+      "previous_repo_urls": null,
+      "release_filename": "HTTP.Server.pak.zip",
+      "changelog": null,
+      "previous_names": [
+        "Dufs Server"
+      ],
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": null,
+      "platforms": [
+        "miyoomini",
+        "my282",
+        "my355",
+        "rg35xxplus",
+        "tg5040",
+        "tg5050"
+      ],
+      "categories": [
+        "File Management"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "hJ6yL4zK9n",
+      "storefront_name": "File Browser",
+      "name": "HTTP Filebrowser",
+      "version": "0.9.0",
+      "type": "TOOL",
+      "description": "Manages the HTTP Filebrowser",
+      "author": "josegonzalez",
+      "repo_url": "https://github.com/josegonzalez/minui-filebrowser-pak",
+      "previous_repo_urls": null,
+      "release_filename": "HTTP.Filebrowser.pak.zip",
+      "changelog": null,
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": null,
+      "platforms": [
+        "miyoomini",
+        "my282",
+        "my355",
+        "rg35xxplus",
+        "tg5040",
+        "tg5050"
+      ],
+      "categories": [
+        "File Management"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "cP3wS1dH7x",
+      "storefront_name": "FTP Server",
+      "name": "FTP Server",
+      "version": "0.4.0",
+      "type": "TOOL",
+      "description": "Manages the FTP Server",
+      "author": "josegonzalez",
+      "repo_url": "https://github.com/josegonzalez/minui-ftpserver-pak",
+      "previous_repo_urls": null,
+      "release_filename": "FTP.Server.pak.zip",
+      "changelog": null,
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": null,
+      "platforms": [
+        "miyoomini",
+        "my282",
+        "my355",
+        "rg35xxplus",
+        "tg5040",
+        "tg5050"
+      ],
+      "categories": [
+        "File Management"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "nX9mF5qB2v",
+      "storefront_name": "Syncthing",
+      "name": "Syncthing",
+      "version": "0.8.1",
+      "type": "TOOL",
+      "description": "Manages Syncthing",
+      "author": "josegonzalez",
+      "repo_url": "https://github.com/josegonzalez/minui-syncthing-pak",
+      "previous_repo_urls": null,
+      "release_filename": "Syncthing.pak.zip",
+      "changelog": null,
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": null,
+      "platforms": [
+        "miyoomini",
+        "my282",
+        "my355",
+        "rg35xxplus",
+        "tg5040",
+        "tg5050"
+      ],
+      "categories": [
+        "File Management"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "zW1hD3jL7g",
+      "storefront_name": "Remote Terminal",
+      "name": "Remote Terminal",
+      "version": "0.8.0",
+      "type": "TOOL",
+      "description": "Manages the Remote Terminal",
+      "author": "josegonzalez",
+      "repo_url": "https://github.com/josegonzalez/minui-remote-terminal-pak",
+      "previous_repo_urls": null,
+      "release_filename": "Remote.Terminal.pak.zip",
+      "changelog": null,
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": null,
+      "platforms": [
+        "my355",
+        "rg35xxplus",
+        "tg5040",
+        "tg5050"
+      ],
+      "categories": [
+        "Developer Tools"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "vM7rP9xQ2s",
+      "storefront_name": "Report",
+      "name": "Report",
+      "version": "0.10.0",
+      "type": "TOOL",
+      "description": "Generates a report for development purposes",
+      "author": "josegonzalez",
+      "repo_url": "https://github.com/josegonzalez/minui-report-pak",
+      "previous_repo_urls": null,
+      "release_filename": "Report.pak.zip",
+      "changelog": null,
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": null,
+      "platforms": [
+        "miyoomini",
+        "my282",
+        "my355",
+        "rg35xxplus",
+        "tg5040",
+        "tg5050",
+        "trimuismart"
+      ],
+      "categories": [
+        "Developer Tools"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "dK5nB4wT8y",
+      "storefront_name": "Terminal",
+      "name": "Terminal",
+      "version": "0.9.0",
+      "type": "TOOL",
+      "description": "Manages the Terminal",
+      "author": "josegonzalez",
+      "repo_url": "https://github.com/josegonzalez/minui-terminal-pak",
+      "previous_repo_urls": null,
+      "release_filename": "Terminal.pak.zip",
+      "changelog": null,
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": null,
+      "platforms": [
+        "my355",
+        "rg35xxplus",
+        "tg5040",
+        "tg5050"
+      ],
+      "categories": [
+        "Developer Tools"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "bR1mQ7yC2t",
+      "storefront_name": "PICO-8",
+      "name": "PICO",
+      "version": "0.7.0",
+      "type": "EMU",
+      "description": "Runs pico-8 in standalone mode",
+      "author": "josegonzalez",
+      "repo_url": "https://github.com/josegonzalez/minui-pico-8-pak",
+      "previous_repo_urls": null,
+      "release_filename": "PICO.pak.zip",
+      "changelog": null,
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": null,
+      "platforms": [
+        "rg35xxplus",
+        "tg5040",
+        "tg5050"
+      ],
+      "categories": [
+        "Emulators"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "fW6pX3kB9v",
+      "storefront_name": "Nintendo DS (DraStic)",
+      "name": "NDS",
+      "version": "0.11.0",
+      "type": "EMU",
+      "description": "Runs drastic in standalone mode for the specified rom",
+      "author": "josegonzalez",
+      "repo_url": "https://github.com/josegonzalez/minui-nintendo-ds-pak",
+      "previous_repo_urls": null,
+      "release_filename": "NDS.pak.zip",
+      "changelog": null,
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": [
+        "drastic/config/drastic.cfg",
+        "drastic/resources/settings.json"
+      ],
+      "screenshots": null,
+      "platforms": [
+        "tg5040"
+      ],
+      "categories": [
+        "Emulators"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "jT8nH4zM1r",
+      "storefront_name": "Nintendo 64 (mupen64plus)",
+      "name": "N64",
+      "version": "0.6.2",
+      "type": "EMU",
+      "description": "Runs mupen64plus in standalone mode for the specified rom",
+      "author": "josegonzalez",
+      "repo_url": "https://github.com/josegonzalez/minui-n64-pak",
+      "previous_repo_urls": null,
+      "release_filename": "N64.pak.zip",
+      "changelog": null,
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": null,
+      "platforms": [
+        "tg5040",
+        "tg5050"
+      ],
+      "categories": [
+        "Emulators"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "pK2yD5qS7g",
+      "storefront_name": "Dreamcast (Flycast)",
+      "name": "DC",
+      "version": "0.5.0",
+      "type": "EMU",
+      "description": "Runs Flycast in standalone mode for the specified rom",
+      "author": "josegonzalez",
+      "repo_url": "https://github.com/josegonzalez/minui-dreamcast-pak",
+      "previous_repo_urls": null,
+      "release_filename": "DC.pak.zip",
+      "changelog": null,
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": null,
+      "platforms": [
+        "tg5040"
+      ],
+      "categories": [
+        "Emulators"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "tN9cW1vL4h",
+      "storefront_name": "Moonlight",
+      "name": "Moonlight",
+      "version": "0.4.0",
+      "type": "TOOL",
+      "description": "Game streaming server via Moonlight",
+      "author": "josegonzalez",
+      "repo_url": "https://github.com/josegonzalez/trimui-brick-moonlight-pak",
+      "previous_repo_urls": null,
+      "release_filename": "Moonlight.pak.zip",
+      "changelog": null,
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": null,
+      "platforms": [
+        "tg5040"
+      ],
+      "categories": [
+        "Streaming Game Clients"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "wB5jR8xF3k",
+      "storefront_name": "Media Player",
+      "name": "Media Player",
+      "version": "0.2.1",
+      "type": "TOOL",
+      "description": "Media Player",
+      "author": "josegonzalez",
+      "repo_url": "https://github.com/josegonzalez/trimui-brick-media-player-pak",
+      "previous_repo_urls": null,
+      "release_filename": "Media.Player.pak.zip",
+      "changelog": null,
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": null,
+      "platforms": [
+        "tg5040"
+      ],
+      "categories": [
+        "Media"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "gQ7hT4dK9c",
+      "storefront_name": "Portmaster",
+      "name": "PORTS",
+      "version": "2.11.1",
+      "type": "EMU",
+      "description": "A Emu Pak for PortMaster which includes everything needed and requires no additional software.",
+      "author": "ben16w",
+      "repo_url": "https://github.com/ben16w/minui-portmaster",
+      "previous_repo_urls": null,
+      "release_filename": "PORTS.pakz",
+      "changelog": null,
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": [
+        "PortMaster"
+      ],
+      "screenshots": null,
+      "platforms": [
+        "tg5040"
+      ],
+      "categories": [
+        "Emulators",
+        "Ports"
+      ],
+      "large_pak": true,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "mL1wS5bV8n",
+      "storefront_name": "PPSSPP",
+      "name": "PSP",
+      "version": "5.1.0",
+      "type": "EMU",
+      "description": "A Emu Pak for PSP, wrapping the standalone PPSSPP emulator.",
+      "author": "ben16w",
+      "repo_url": "https://github.com/ben16w/minui-psp",
+      "previous_repo_urls": null,
+      "release_filename": "PSP.pak.zip",
+      "changelog": null,
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": [
+        "PPSSPPSDL/.config/ppsspp/PSP/SYSTEM/controls.ini",
+        "PPSSPPSDL/.config/ppsspp/PSP/SYSTEM/ppsspp.ini"
+      ],
+      "screenshots": null,
+      "platforms": [
+        "tg5040",
+        "tg5050"
+      ],
+      "categories": [
+        "Emulators"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "sF9zJ2rX6y",
+      "storefront_name": "Cloud Backups",
+      "name": "Cloud Backups",
+      "version": "1.1.0",
+      "type": "TOOL",
+      "description": "A Pak to to back up saves, screenshots and other folders to cloud storage providers like Google Drive and Dropbox.",
+      "author": "ben16w",
+      "repo_url": "https://github.com/ben16w/minui-cloud-backups",
+      "previous_repo_urls": null,
+      "release_filename": "Cloud.Backups.pak.zip",
+      "changelog": null,
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": [
+        "config.json"
+      ],
+      "screenshots": null,
+      "platforms": [
+        "tg5040"
+      ],
+      "categories": [
+        "File Management"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "kH8vN3gT5w",
+      "storefront_name": "Tailscale",
+      "name": "Tailscale",
+      "version": "1.2.0",
+      "type": "TOOL",
+      "description": "A Pak wrapping Tailscale, a secure and easy-to-use VPN.",
+      "author": "ben16w",
+      "repo_url": "https://github.com/ben16w/minui-tailscale",
+      "previous_repo_urls": null,
+      "release_filename": "Tailscale.pak.zip",
+      "changelog": null,
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": [
+        "config.json"
+      ],
+      "screenshots": null,
+      "platforms": [
+        "tg5040"
+      ],
+      "categories": [
+        "Developer Tools",
+        "Miscellaneous Tools"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "cR1dW4zK8m",
+      "storefront_name": "Search Pak",
+      "name": "Search",
+      "version": "0.5.0",
+      "type": "TOOL",
+      "description": "An app for searching your ROM collection.",
+      "author": "Cuteseal",
+      "repo_url": "https://github.com/laesetuc/minui-search-pak",
+      "previous_repo_urls": null,
+      "release_filename": "Search.pak.zip",
+      "changelog": null,
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": null,
+      "platforms": [
+        "tg5040"
+      ],
+      "categories": [
+        "ROM Management"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "zK8wB1jL4g",
+      "storefront_name": "ScummVM",
+      "name": "ScummVM",
+      "version": "0.3.0",
+      "type": "EMU",
+      "description": "ScummVM emulator for NextUI.",
+      "author": "Cuteseal",
+      "repo_url": "https://github.com/laesetuc/minui-scummvm",
+      "previous_repo_urls": null,
+      "release_filename": "SCUMMVM.pak.zip",
+      "changelog": null,
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": null,
+      "platforms": [
+        "tg5040"
+      ],
+      "categories": [
+        "Emulators"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "vN4yR7xQ2h",
+      "storefront_name": "Rom Inspector",
+      "name": "Rom Inspector",
+      "version": "V0.9.0",
+      "type": "TOOL",
+      "description": "This script manages ROM files with some tools",
+      "author": "Gabrielpsp",
+      "repo_url": "https://github.com/gabrielpsp/Rom-Inspector-pak",
+      "previous_repo_urls": null,
+      "release_filename": "Rom.Inspector.pak.zip",
+      "changelog": null,
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": null,
+      "platforms": [
+        "tg5040"
+      ],
+      "categories": [
+        "ROM Management",
+        "File Management"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "qM2cH6zW1r",
+      "storefront_name": "Zelda Classic",
+      "name": "ZQUEST",
+      "version": "v1.0.0",
+      "type": "EMU",
+      "description": "libretro core for playing Zelda Classic v2.10-compatible quests",
+      "author": "Cobalt",
+      "repo_url": "https://github.com/cobaltgit/Zelda-Classic-MinUI",
+      "previous_repo_urls": null,
+      "release_filename": "ZQUEST.pakz",
+      "changelog": {
+        "v1.0.0": "Initial release"
+      },
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": null,
+      "platforms": [
+        "tg5040"
+      ],
+      "categories": [
+        "Emulators"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "jH2wT5dM8g",
+      "storefront_name": "Screenshot Viewer",
+      "name": "Screenshots",
+      "version": "v0.2.5",
+      "type": "TOOL",
+      "description": "A MinUI pak for browsing your saved screenshots. Automatically organized by game/app.",
+      "author": "mikecosentino",
+      "repo_url": "https://github.com/mikecosentino/Screenshots",
+      "previous_repo_urls": null,
+      "release_filename": "Screenshots.pak.zip",
+      "changelog": {
+        "v0.1.2": "Initial launch for the Pak Store",
+        "v0.2.0": "Pressing X while viewing a screenshot will prompt to delete. (I'm working on speeding up the screenshot list rebuild speed)",
+        "v0.2.1": "Fixed a launch bug. Sorry!",
+        "v0.2.2": "Sped up rebuilding screenshot list after deleting a screenshot.",
+        "v0.2.3": "Moved screenshot delete to list of screenshots.",
+        "v0.2.4": "Displays a status screen while rebuilding cache.",
+        "v0.2.5": "Fixed bug with games with an apostrophe in their title and sped up pak loading by only loading list of screenshots on launch, and then building individual games' screenshots when choosing that game."
+      },
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": null,
+      "platforms": [
+        "tg5040"
+      ],
+      "categories": [
+        "Media"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "tY5xB7qL3r",
+      "storefront_name": "SMSU (Genesis Plus GX)",
+      "name": "SMSU",
+      "version": "v1.1.1",
+      "type": "EMU",
+      "description": "Genesis-Plus-GX (PUNCHiUM) core with MD-MSU support for Trimui Brick NextUI.",
+      "author": "SkyZ0ro",
+      "repo_url": "https://github.com/SkyZ0ro/Trimui-Brick-GMD",
+      "previous_repo_urls": null,
+      "release_filename": "SMSU.pak.zip",
+      "changelog": {
+        "v1.0.0": "Initial release.",
+        "v1.1.0": "Renamed GMD.pak to SMSU.pak, updated ROM folder name and README, added QR code.",
+        "v1.1.1": "Fixed pak.json name: removed .pak extension as requested by GitHub feedback."
+      },
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": [],
+      "screenshots": [],
+      "platforms": [
+        "tg5040"
+      ],
+      "categories": [
+        "Emulators"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "aD4hS9nW1j",
+      "storefront_name": "M3U Manager",
+      "name": "M3U Manager",
+      "version": "0.2.0",
+      "type": "TOOL",
+      "description": "Manages M3U files",
+      "author": "josegonzalez",
+      "repo_url": "https://github.com/josegonzalez/minui-m3u-manager-pak",
+      "previous_repo_urls": null,
+      "release_filename": "M3U.Manager.pak.zip",
+      "changelog": null,
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": null,
+      "platforms": [
+        "miyoomini",
+        "my282",
+        "my355",
+        "rg35xxplus",
+        "tg5040",
+        "tg5050",
+        "trimuismart"
+      ],
+      "categories": [
+        "ROM Management"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "mN1kQ8xB4p",
+      "storefront_name": "Storiies",
+      "name": "Storiies",
+      "version": "v1.0.4",
+      "type": "TOOL",
+      "description": "A simple, intuitive and kid-friendly MP3 player for retro-handhelds.",
+      "author": "pcorbel",
+      "repo_url": "https://github.com/pcorbel/storiies",
+      "previous_repo_urls": null,
+      "release_filename": "Storiies.pak.zip",
+      "changelog": {
+        "v1.0.0": "Initial release",
+        "v1.0.1": "Added support for NextUI",
+        "v1.0.2": "Added support for Knulli",
+        "v1.0.3": "Added splash screen",
+        "v1.0.4": "Added support for nextui-pak-store"
+      },
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": [],
+      "screenshots": [
+        ".github/albums.png",
+        ".github/tracks.png",
+        ".github/player.png"
+      ],
+      "platforms": [
+        "tg5040"
+      ],
+      "categories": [
+        "Media"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "sR6wF2dH9v",
+      "storefront_name": "8bit-Numera",
+      "name": "8bit-Numera",
+      "version": "v1.0.0",
+      "type": "TOOL",
+      "description": "A simple calculator application.",
+      "author": "Naveen Siva Gurumohanram",
+      "repo_url": "https://github.com/naveensiva/Trimui-8bit-Numera",
+      "previous_repo_urls": null,
+      "release_filename": "8bit-Numera.pak.zip",
+      "changelog": null,
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": [
+        ".github/resources/screenshots/main_menu.jpg"
+      ],
+      "platforms": [
+        "tg5040"
+      ],
+      "categories": [
+        "Miscellaneous Tools"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "nQ4wT7bL3j",
+      "storefront_name": "Music Player",
+      "name": "Music Player",
+      "version": "v1.10.0",
+      "type": "TOOL",
+      "description": "A comprehensive music playback application for NextUI featuring local file playback, online radio streaming, and music downloading.",
+      "author": "nborodikhin (fork of mohammadsyuhada)",
+      "repo_url": "https://github.com/nborodikhin/nextui-music-player",
+      "previous_repo_urls": [
+        "https://github.com/mohammadsyuhada/nextui-music-player"
+      ],
+      "release_filename": "Music.Player.pak.zip",
+      "changelog": {
+        "v1.7.0": "Background playback - music, radio, and podcasts keep playing while navigating the app",
+        "v1.7.1": "Fixed a bug that caused certain podcast cannot be downloaded",
+        "v1.7.2": "Fixed app failed to launch on tg5050 (TSPS)",
+        "v1.7.3": "Fixed black screen issue on TG5050 when exiting the keyboard",
+        "v1.7.4": "Fixed online radio failed to play redirected stream URL (https)",
+        "v1.7.5": "Fixed missing library for TG5050",
+        "v1.7.6": "Added playback speed control for podcasts and fixed the volume stepping issue",
+        "v1.8.0": "Active fork (nborodikhin) — original upstream archived.",
+        "v1.10.0": "Latest from maintained fork (audit-recommended switch for kUI 0.27a)."
+      },
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": [
+        ".github/resources/screenshots/main.jpg"
+      ],
+      "platforms": [
+        "tg5040",
+        "tg5050"
+      ],
+      "categories": [
+        "Media"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "rH6cY9zM2g",
+      "storefront_name": "TIC-80",
+      "name": "TIC",
+      "version": "0.3.0",
+      "type": "EMU",
+      "description": "Runs TIC-80 fantasy computer games",
+      "author": "Alex Mayer",
+      "repo_url": "https://github.com/amayer5125/nextui-tic-80-pak",
+      "previous_repo_urls": null,
+      "release_filename": "TIC.pak.zip",
+      "changelog": {
+        "0.1.0": "Initial Pak",
+        "0.2.0": "Package the latest TIC-80 release instead of the dev/nightly version. Fixes some games freezing.",
+        "0.3.0": "Remap buttons. Set screen scaling. Remove boarder to make game larger."
+      },
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": null,
+      "platforms": [
+        "tg5040"
+      ],
+      "categories": [
+        "Emulators"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "PatiFgxsej",
+      "storefront_name": "Paws, Productivity and Workflow System",
+      "name": "Paws",
+      "version": "v1.0.0",
+      "type": "TOOL",
+      "description": "Paws is a distraction-free focus app for NextUI that pairs Pomodoro sessions, daily schedules, and music integration with a system that turns your focus time into budgeted gaming sessions. It comes with an unimpressed cat who has a particular habit of assigning tasks. Consider it corrective training.",
+      "author": "KrutzOtrem",
+      "repo_url": "https://github.com/KrutzOtrem/Paws",
+      "previous_repo_urls": null,
+      "release_filename": "Paws.pak.zip",
+      "changelog": {
+        "v1.0.0": "Initial release."
+      },
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": [
+        ".github/resources/screenshots/Paws.jpg",
+        ".github/resources/screenshots/1.png",
+        ".github/resources/screenshots/2.png",
+        ".github/resources/screenshots/3.png",
+        ".github/resources/screenshots/4.png"
+      ],
+      "platforms": [
+        "tg5040",
+        "tg5050"
+      ],
+      "categories": [
+        "Miscellaneous Tools"
+      ],
+      "large_pak": false,
+      "disabled": true,
+      "experimental": false
+    },
+    {
+      "id": "rZCmsXQDOc",
+      "storefront_name": "TrimUI Music Player & Scrobbler",
+      "name": "Music Player",
+      "version": "0.4.1",
+      "type": "TOOL",
+      "description": "Music Player with Last.fm scrobble logging",
+      "author": "ExpandedPlum",
+      "repo_url": "https://github.com/ExpandedPlum/trimui-brick-music-player-with-scrobbling-pak",
+      "previous_repo_urls": null,
+      "release_filename": "Music.Player.pak.zip",
+      "changelog": null,
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": null,
+      "platforms": [
+        "tg5040"
+      ],
+      "categories": [
+        "Media"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "EDkODyX2KO",
+      "storefront_name": "Cheat Downloader Offline",
+      "name": "Cheat Downloader Offline",
+      "version": "v1.3.0",
+      "type": "TOOL",
+      "description": "A NextUI pak for getting cheats from the Libretro github repo. Needs internet only for the initial database download.",
+      "author": "nborodikhin",
+      "repo_url": "https://github.com/nborodikhin/nextui-cheat-downloader-alt",
+      "previous_repo_urls": null,
+      "release_filename": "CheatDownloaderOffline.pakz",
+      "changelog": {
+        "v1.0.0": "Initial release.",
+        "v1.1.0": "Use zip file for faster cheat extraction time (supportied by packed miniz).",
+        "v1.2.0": "Suppress buttons on downloading screen, restore last position in lists (using unofficial builds of minui-list and minui-presenter).",
+        "v1.3.0": "Use official builds of minui-list and minui-presenter, add tg5050 and my355 support",
+        "v1.4.0": "Sort cheats ignoring case, fix overlapping in list selectors, rewrite app in Nim"
+      },
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": null,
+      "platforms": [
+        "tg5040",
+        "tg5050",
+        "my355"
+      ],
+      "categories": [
+        "ROM Management"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "bGeMnFrpN6",
+      "storefront_name": "Sega Saturn (YabaSanshiro)",
+      "name": "SS",
+      "version": "1.9.1",
+      "type": "EMU",
+      "description": "Yaba Sanshiro standalone emulator for Sega Saturn",
+      "author": "SouthwestDivineFist",
+      "repo_url": "https://github.com/SouthwestDivineFist/SS-pak",
+      "previous_repo_urls": null,
+      "release_filename": "SS.pak.zip",
+      "changelog": null,
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": null,
+      "platforms": [
+        "tg5040",
+        "tg5050"
+      ],
+      "categories": [
+        "Emulators"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "jSb2dK7H00",
+      "storefront_name": "WeRead",
+      "name": "WeRead",
+      "version": "v0.1.10",
+      "type": "TOOL",
+      "description": "A native WeRead client for TrimUI handhelds.",
+      "author": "Lin0u0",
+      "repo_url": "https://github.com/Lin0u0/TrimUI-WeRead",
+      "previous_repo_urls": null,
+      "release_filename": "WeRead.pakz",
+      "changelog": {
+        "v0.1.10": "Split the reader and UI runtime into dedicated modules, hardened reader/article parsing and progress/session handling, and added package launcher audit smoke coverage.",
+        "v0.1.3": "Improved reader layout, restored system OSD hotkeys, and added tg5040 haptic feedback.",
+        "v0.1.4": "Polished reader navigation with smoother catalog selection, confirm-to-exit from reading, and faster nearby shelf cover loading. Also refactored reader and UI helpers into dedicated modules for easier maintenance.",
+        "v0.1.5": "Reduced CPU usage and device heat during idle reading and browsing with event-driven sleep, non-blocking haptics, and smarter render skipping.",
+        "v0.1.6": "Hardened the TrimUI release path with preflight diagnostics, package archive audits for NextUI/Stock/CrossMix, and CI that now runs the same verified make-based release flow as maintainers.",
+        "v0.1.7": "Added first-class WeRead article support with separate shelf handling, article catalogs and font sizing, smoother cross-chapter paging, faster catalog opening, and cooler shelf idle behavior.",
+        "v0.1.8": "Added real cover art for公众号文章, normalized qlogo cover URLs, and fixed the shelf rendering path so article covers stay visible even when the first normal book is selected.",
+        "v0.1.9": "Reworked the centered catalog flow with reliable held scrolling and safer chapter jumps, improved article opening and parsing, and moved tg5040 haptics off the render path."
+      },
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": [
+        ".github/resources/screenshots/1.png",
+        ".github/resources/screenshots/2.png",
+        ".github/resources/screenshots/3.png",
+        ".github/resources/screenshots/4.png",
+        ".github/resources/screenshots/5.png",
+        ".github/resources/screenshots/6.png",
+        ".github/resources/screenshots/7.png",
+        ".github/resources/screenshots/8.png"
+      ],
+      "platforms": [
+        "tg5040"
+      ],
+      "categories": [
+        "Media"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "4RjneX9Zj2",
+      "storefront_name": "SideB",
+      "name": "SideB",
+      "version": "v1.0.6",
+      "type": "TOOL",
+      "description": "Retro cassette-style player for TrimUI Brick with Spotify Connect, offline favorites, local MP3 playback, smart caching, and download progress",
+      "author": "CharlexH",
+      "repo_url": "https://github.com/CharlexH/SideB",
+      "previous_repo_urls": null,
+      "release_filename": "SideB-1.0.6-nextui.zip",
+      "changelog": {
+        "v1.0.4": "Added ffmpeg-lite packaging, improved runtime logging, fixed Spotify takeover of local playback, and upgraded FAV LIST navigation with wrap-around and hold-to-repeat controls.",
+        "v1.0.5": "Smart multi-candidate YouTube search with duration scoring, post-download validation, real-time download progress in FAV LIST, and automatic resume of incomplete downloads on startup.",
+        "v1.0.6": "Major performance optimization: 3x faster rendering (87ms → 25ms per frame), eliminated CPU busy-waiting, fast alpha blending, reduced device temperature by ~25°C during playback."
+      },
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": [
+        "screenshots/spotify_connecting.png",
+        "screenshots/favlist.png",
+        "screenshots/offline_playing.png",
+        "screenshots/waiting.png"
+      ],
+      "platforms": [
+        "tg5040"
+      ],
+      "categories": [
+        "Media"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "cllNwPQZ9b",
+      "storefront_name": "NothingClock",
+      "name": "NothingClock",
+      "version": "v0.1.1",
+      "type": "TOOL",
+      "description": "A Nothing-inspired clock app for TrimUI handhelds.",
+      "author": "Lin0u0",
+      "repo_url": "https://github.com/Lin0u0/NextUI-NothingClock-Pak",
+      "previous_repo_urls": null,
+      "release_filename": "NothingClock.pakz",
+      "changelog": {
+        "v0.1.0": "Initial release.",
+        "v0.1.1": "Added TG5040 haptic feedback across navigation and confirm actions, improved timer lap scrolling and indicators, and refined dot-matrix spacing plus anti-aliased arc rendering."
+      },
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": null,
+      "platforms": [
+        "tg5040"
+      ],
+      "categories": [
+        "Miscellaneous Tools"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "yfEKfG0W1a",
+      "storefront_name": "RetroRead",
+      "name": "RetroRead",
+      "version": "v0.5.3",
+      "type": "TOOL",
+      "description": "A retro game-style reader for EPUB and TXT books on NextUI.",
+      "author": "expkzb",
+      "repo_url": "https://github.com/expkzb/RetroRead-Pak",
+      "previous_repo_urls": null,
+      "release_filename": "RetroRead.pak.zip",
+      "changelog": {
+        "v0.5.0": "Introduced the RetroRead name, TXT support, voice styles, richer dialogue box themes, and a polished TrimUI Brick experience.",
+        "v0.5.1": "Fixed release packaging structure and refreshed project screenshots and support messaging.",
+        "v0.5.2": "Fixed punctuation reveal edge cases, improved Chinese and quoted sentence splitting, and added handheld performance HUD/log tools.",
+        "v0.5.3": "Added the new theme system with Mint LCD and GB Invert, improved menu selection visibility, and enabled right-direction paging in the reader."
+      },
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": [
+        ".github/resources/screenshots/bookshelf.jpg",
+        ".github/resources/screenshots/reader.jpg",
+        ".github/resources/screenshots/settings.jpg"
+      ],
+      "platforms": [
+        "tg5040"
+      ],
+      "categories": [
+        "Media"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "3JM2zY4UKh",
+      "storefront_name": "Itch.io Store",
+      "name": "Itch-io",
+      "version": "v1.0.10",
+      "type": "TOOL",
+      "description": "Browse and download GB/GBC games from Itch.io's GB Studio collection.",
+      "author": "Carroarmato0",
+      "repo_url": "https://github.com/carroarmato0/NextUI-Itchio-Pak",
+      "previous_repo_urls": null,
+      "release_filename": "Itch-io.pak.zip",
+      "changelog": {
+        "v1.0.0": "Initial release — browse and download free and paid GB/GBC games from itch.io's GB Studio collection, with built-in content filters.",
+        "v1.0.1": "Fix Pak name.",
+        "v1.0.10": "\n• Add support for Arabic, Hebrew, Thai, Devanagari, Greek, and many more non-CJK fonts.\n• Fix issue preventing to exit the app when Cloudflare blocks the connection.\n• Rewrite of the build system to leverage NextUI's own toolchains, allowing the use of the native SDL library on the devices and reducing the size of the Pak.\n• Some UI fixes.\n• Fix launching on Miyoo Flip and TrimUI Smart Pro S.\n• Support GIFs in cover art.\n• New Inventory system for tracking downloaded ROMs, game updates and store removals.\n• New Sorting category [DL] = Download, with Update section.\n• Implement Power Control (standby and poweroff).\n• Countermeasures for the \"double input\" hardware bug on my355.\n• Log rotation.",
+        "v1.0.10-rc1": "\n• Add support for Arabic, Hebrew, Thai, Devanagari, Greek, and many more non-CJK fonts.\n• Allow exiting the Pak when Cloudflare is blocking the initial fetching of the game list.\n• Rewrite build and release to use NextUI toolchains and switch to native SDL on device.",
+        "v1.0.10-rc2": "\n• Fix some UI issues.\n• Prevent double input on my355.",
+        "v1.0.10-rc3": "\n• Support GIFs in cover art.\n• Enhance inventory for tracking game updates or store removal.",
+        "v1.0.10-rc4": "\n• Implement Power Control (wakeup/poweroff).\n• Fix double d-pad input on my355.",
+        "v1.0.2": "\n• Place app logs in correct folder location.\n• Fix scripts and in-app version.",
+        "v1.0.3": "Support alternative ROM location per file-type.",
+        "v1.0.4": "\n• Add advanced logging.\n• Privacy obfuscation in logs.\n• User agent string.",
+        "v1.0.5": "\n• Transparent game list caching.\n• Better scrolling in general.\n• Support Asian fonts through Noto Sans JP.",
+        "v1.0.6": "\n• More robust handling of Cloudflare checks.\n• Improved cover art download.\n• Handle game page with .zip filenames.",
+        "v1.0.7": "\n• Advanced logging.\n• API key testing.\n• Game inventory.\n• File management.\n• Purchase picker for games bought multiple times (individual and bundle).\n• Shows bundle names in picker.\n• Faster game detail scrolling.\n• Fix cover art not shown properly.",
+        "v1.0.8": "Fix the +50 owned games issue when the API returns an empty page response because there are not 51 games.",
+        "v1.0.9": "Implement basic sorting in Game List."
+      },
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": [
+        "docs/screenshots/main.png",
+        "docs/screenshots/game.png",
+        "docs/screenshots/content_warning.png",
+        "docs/screenshots/settings.png",
+        "docs/screenshots/downloaded.png"
+      ],
+      "platforms": [
+        "tg5040",
+        "tg5050",
+        "my355"
+      ],
+      "categories": [
+        "ROM Management"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "uTS0lQhoBa",
+      "storefront_name": "NextFeed",
+      "name": "NextFeed",
+      "version": "v0.3.0",
+      "type": "TOOL",
+      "description": "Offline-friendly RSS and Atom reader for NextUI devices.",
+      "author": "Eric Reinsmidt",
+      "repo_url": "https://github.com/ericreinsmidt/nextui-rss-reader",
+      "previous_repo_urls": null,
+      "release_filename": "NextFeed.tg5040.pak.zip",
+      "changelog": {
+        "v0.1.0": "RSS 2.0 and Atom feed parsing, using Apostrophe for native NextUI look.",
+        "v0.2.0": "Added caching of raw XML per feed, auto-refresh on launch, article count shown next to feed names, color picker and more.",
+        "v0.3.0": "PakKit UI integration, custom on-screen keyboard with URL shortcuts, removed color settings, minimal text hints."
+      },
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": [
+        "assets/logo.png",
+        "assets/screenshots/feeds.png",
+        "assets/screenshots/list.png",
+        "assets/screenshots/article.png"
+      ],
+      "platforms": [
+        "tg5040"
+      ],
+      "categories": [
+        "Media"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "BEgjD8r76k",
+      "storefront_name": "Nimbus",
+      "name": "Nimbus",
+      "version": "v0.2.0",
+      "type": "TOOL",
+      "description": "Weather app for NextUI devices.",
+      "author": "Eric Reinsmidt",
+      "repo_url": "https://github.com/ericreinsmidt/nextui-nimbus",
+      "previous_repo_urls": null,
+      "release_filename": "Nimbus.tg5040.pak.zip",
+      "changelog": {
+        "v0.1.0": "Initial version.",
+        "v0.1.1": "Updated UI, squashed some bugs.",
+        "v0.2.0": "PakKit keyboard for location search, updated README, pinned PakKit v0.2.0."
+      },
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": [
+        "assets/logo.png",
+        "assets/screenshots/current.png",
+        "assets/screenshots/forecast.png",
+        "assets/screenshots/location.png",
+        "assets/screenshots/qr.png",
+        "assets/screenshots/api.png"
+      ],
+      "platforms": [
+        "tg5040"
+      ],
+      "categories": [
+        "Miscellaneous Tools"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    },
+    {
+      "id": "kUI_retroarch",
+      "storefront_name": "RetroArch",
+      "name": "RetroArch",
+      "version": "v1.0.0",
+      "type": "TOOL",
+      "description": "RetroArch frontend built from source by kUI.",
+      "author": "ArjunKdaf",
+      "repo_url": "https://github.com/ArjunKdaf/kUI",
+      "release_filename": "RetroArch.pak.zip",
+      "categories": [
+        "Emulators"
+      ],
+      "platforms": [
+        "tg5040"
+      ],
+      "disabled": false
+    }
+  ],
+  "experimental_paks": [
+    {
+      "id": "77QFF0uYRu",
+      "storefront_name": "RPG Maker XP/VX/VX Ace (MKXPZ)",
+      "name": "MKXPZ",
+      "version": "v0.6.7",
+      "type": "EMU",
+      "description": "This core emulates RPG Maker XP/VX/VX Ace games.",
+      "author": "KrutzOtrem",
+      "repo_url": "https://github.com/KrutzOtrem/nextui-mkxpz",
+      "previous_repo_urls": null,
+      "release_filename": "MKXPZ.pak.zip",
+      "changelog": {
+        "0.6.7": "Fixed an issue that prevented the B button from being assigned to other actions."
+      },
+      "previous_names": null,
+      "scripts": {
+        "post_install": {
+          "path": "",
+          "args": null
+        },
+        "post_update": {
+          "path": "",
+          "args": null
+        },
+        "post_uninstall": {
+          "path": "",
+          "args": null
+        }
+      },
+      "update_ignore": null,
+      "screenshots": null,
+      "platforms": [
+        "tg5040",
+        "tg5050"
+      ],
+      "categories": [
+        "Emulators"
+      ],
+      "large_pak": false,
+      "disabled": false,
+      "experimental": false
+    }
+  ]
+}
