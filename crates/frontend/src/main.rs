@@ -491,9 +491,15 @@ fn run() -> i32 {
     } else {
         stem.clone()
     };
-    let save_ext = if cfg.get_or("save.format", "srm") == "sav" { "sav" } else { "srm" };
-    let save_compress = cfg.get_or("save.compress", "off") == "on";
-    let state_compress = cfg.get_or("state.compress", "off") == "on";
+    // one save-format choice: RetroArch (.srm) raw or rzip-compressed, or
+    // minarch (.sav, always raw — minarch never compressed). The choice
+    // governs save states too; reads stay transparent either way.
+    let (save_ext, save_compress) = match cfg.get_or("save.format", "srm") {
+        "sav" => ("sav", false),
+        "srmz" => ("srm", true),
+        _ => ("srm", false),
+    };
+    let state_compress = save_compress;
     let sav_path = save_dir.join(format!("{save_stem}.{save_ext}"));
     let rtc_path = save_dir.join(format!("{rom_file}.rtc"));
     if let Ok(bytes) = std::fs::read(&sav_path) {

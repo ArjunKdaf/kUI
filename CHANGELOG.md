@@ -13,13 +13,12 @@
   and keeps a long session dramatically cooler — an uncapped Hoenn hack
   session hit 79°C and wedged a CPU core; the same game under Powersave
   holds 42°C.
-- **RetroArch-compatible save compression.** New System toggles "Save
-  compression" and "State compression" write battery saves and save
-  states in RetroArch's rzip container (`#RZIPv1#`, chunked zlib), so
-  compressed saves move freely between kUI and RetroArch devices.
-  Reading is always transparent: raw or rzip, either loads regardless of
-  the toggle, so flipping the option never strands an existing save.
-  Complements the existing "Save format" (.srm/.sav) choice.
+- **Save format is one choice now.** "Save format" offers RetroArch
+  (.srm), RetroArch compressed (.srm in RA's rzip container, save states
+  included), or minarch (.sav, always raw — minarch never compressed).
+  Compressed saves move freely between kUI and RetroArch devices, and
+  reading is always transparent: raw or rzip, any of them loads
+  regardless of the setting, so switching never strands a save.
 - **RetroAchievements hardcore, audit-ready.** Hardcore mode (config key
   `ra.hardcore`, default off; the Control Panel toggle stays hidden until
   RetroAchievements approves kUI as a client) implements RA's published
@@ -76,6 +75,10 @@
   `.system/res/collections/` is used — kept separate from the theme-managed
   carousel art. Drop a PNG in the userdata folder to replace any panel.
 
+- **Gaming LEDs match the Default colors.** The Gaming profile's shipped
+  color is now the same white as the Default profile (was green), still
+  at its dimmer in-game brightness. Restyle either in the LED editor as
+  before.
 - **Default LEDs are white.** The Top and Trigger (L/R) lights now default
   to white instead of green on the Default profile. Other profiles (charging
   green, low-battery amber, critical red, sleep dark) are unchanged, and any

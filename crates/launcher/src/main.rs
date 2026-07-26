@@ -1759,8 +1759,6 @@ fn run() -> i32 {
                                 "power.profile",
                                 "save.format",
                                 "save.extracted",
-                                "save.compress",
-                                "state.compress",
                             ] {
                                 cfg.remove_prefix(k);
                             }
