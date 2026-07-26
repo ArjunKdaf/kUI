@@ -543,9 +543,27 @@ fn run() -> i32 {
         }
     };
     let joy = v.sdl.joystick().ok();
-    let _sticks: Vec<_> = joy
+    let _sticks: Vec<sdl2::joystick::Joystick> = joy
         .map(|j| (0..j.num_joysticks().unwrap_or(0)).filter_map(|i| j.open(i).ok()).collect())
         .unwrap_or_default();
+    // phantom-input trap (2026-07-26 freeze hunt): a button latched at
+    // session start — e.g. a stale START from the virtual pad after a
+    // resume — pauses SMS/GBA games in ways that look like a freeze.
+    // Log any non-neutral initial state so the session log convicts it.
+    for s in &_sticks {
+        for b in 0..s.num_buttons() {
+            if s.button(b).unwrap_or(false) {
+                println!("phantom: joy '{}' button {b} already held at start", s.name());
+            }
+        }
+        for h in 0..s.num_hats() {
+            if let Ok(hs) = s.hat(h)
+                && hs != sdl2::joystick::HatState::Centered
+            {
+                println!("phantom: joy '{}' hat {h} at {hs:?} on start", s.name());
+            }
+        }
+    }
 
     let audio = v.sdl.audio().expect("audio subsystem");
     let spec = sdl2::audio::AudioSpecDesired {
@@ -1203,6 +1221,14 @@ fn run() -> i32 {
                             Binding::Turbo(_) => turbo_held[pi2] = is_down,
                             Binding::None => {}
                         }
+                    }
+                    // freeze-hunt trap: SMS pause / GBA Start are the
+                    // phantom-input suspects, so every edge goes on record
+                    if matches!(b, Button::Start | Button::Select) {
+                        println!(
+                            "input: {b:?} {} (menu_held={menu_held}, frame {frame_no})",
+                            if is_down { "down" } else { "up" }
+                        );
                     }
                     let bit = match b {
                         Button::Select if !menu_held => Some(lr::JOYPAD_SELECT),
