@@ -7,12 +7,12 @@
 - **Power profiles actually manage heat now.** All three profiles run the
   schedutil governor (idle always clocks down) and differ by frequency
   ceiling: Performance is uncapped, Auto caps at the 1.4GHz step,
-  Powersave at the 1.0GHz step. The profile applies per game with a
-  per-system default — set it in Core Options (new "Power Profile" row,
-  stored as `fe.<TAG>.power`, per-game override `game.<TAG>.<rom>.power`),
-  falling back to the global System setting. Powersave is plenty for
-  GB/GBC/GBA-class cores and keeps a long session dramatically cooler —
-  an uncapped Hoenn hack session hit 79°C and wedged a CPU core.
+  Powersave at the 1.0GHz step. One global setting (Control Panel →
+  System) governs every game alike — fast-forward speed scales with the
+  ceiling too, by design. Powersave is plenty for GB/GBC/GBA-class cores
+  and keeps a long session dramatically cooler — an uncapped Hoenn hack
+  session hit 79°C and wedged a CPU core; the same game under Powersave
+  holds 42°C.
 - **RetroArch-compatible save compression.** New System toggles "Save
   compression" and "State compression" write battery saves and save
   states in RetroArch's rzip container (`#RZIPv1#`, chunked zlib), so

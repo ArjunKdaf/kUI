@@ -504,19 +504,10 @@ fn run() -> i32 {
     if let Ok(bytes) = std::fs::read(&rtc_path) {
         core.load_rtc(&rzip_decompress(&bytes));
     }
-    // per-game > per-system > global power profile. session.sh forces the
-    // performance governor around every launch, so the cap is asserted here.
-    let power_profile = {
-        let per_game = cfg.get_or(&format!("game.{tag}.{stem}.power"), "").to_string();
-        let per_sys = cfg.get_or(&format!("fe.{tag}.power"), "").to_string();
-        if !per_game.is_empty() {
-            per_game
-        } else if !per_sys.is_empty() {
-            per_sys
-        } else {
-            cfg.get_or("power.profile", "auto").to_string()
-        }
-    };
+    // one global power profile (Control Panel), every game alike;
+    // asserted here because session.sh forces the performance governor
+    // around every launch
+    let power_profile = cfg.get_or("power.profile", "auto").to_string();
     tg5040::apply_power_profile(&power_profile);
     println!("power profile: {power_profile}");
     let core_stem = core_path
