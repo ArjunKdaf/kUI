@@ -153,7 +153,15 @@ while true; do
 
 	if [ -f "$NEXT_PATH" ]; then
 		CMD=$(cat "$NEXT_PATH")
-		eval "$CMD"
+		# session log: append, pruned each launch so it never grows
+		# unbounded but a crash always leaves the last session on card
+		FELOG="$LOGS_PATH/kui-frontend.txt"
+		if [ -f "$FELOG" ] && [ "$(wc -c < "$FELOG")" -gt 524288 ]; then
+			tail -c 262144 "$FELOG" > "$FELOG.tmp" && mv -f "$FELOG.tmp" "$FELOG"
+		fi
+		echo "=== session start $(date): $CMD" >> "$FELOG"
+		eval "$CMD" >> "$FELOG" 2>&1
+		echo "=== session exit rc=$? $(date)" >> "$FELOG"
 		rm -f "$NEXT_PATH"
 		# back to full speed for the launcher; it resets auto if it wants
 		perf_governor

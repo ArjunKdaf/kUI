@@ -13,7 +13,7 @@ use std::time::Instant;
 use kui_gfx::{Renderer, Texture, WHITE};
 use kui_hal::sdl::SdlVideo;
 use kui_hal::tg5040;
-use kui_hal::{Button, ButtonState, InputEvent};
+use kui_hal::{Button, ButtonState, InputEvent, Repeat};
 use kui_libretro as lr;
 
 mod hardcore;
@@ -870,6 +870,8 @@ fn run() -> i32 {
         return 0;
     }
 
+    // hold-to-scroll for every menu list, same tuning as the launcher
+    let mut nav_rep = Repeat::new();
     'run: loop {
         let mut menu_pressed = false;
         let mut sleep_req = false;
@@ -901,12 +903,10 @@ fn run() -> i32 {
                     set(&mut pad, lr::JOYPAD_DOWN, d);
                     set(&mut pad, lr::JOYPAD_LEFT, l);
                     set(&mut pad, lr::JOYPAD_RIGHT, r);
-                    if u {
-                        up = true;
-                    }
-                    if d {
-                        down = true;
-                    }
+                    // vertical nav goes through the repeat helper (below)
+                    // so held up/down keeps scrolling like the launcher
+                    nav_rep.held[0][0] = u;
+                    nav_rep.held[0][1] = d;
                     if l {
                         left = true;
                     }
@@ -1239,6 +1239,11 @@ fn run() -> i32 {
             }
         }
 
+        match nav_rep.step(Instant::now()) {
+            s if s < 0 => up = true,
+            s if s > 0 => down = true,
+            _ => {}
+        }
         if let Some(is_bright) = vol_hold {
             // key still held: keymon keeps stepping, keep the bar alive
             osd = Some((is_bright, Instant::now()));

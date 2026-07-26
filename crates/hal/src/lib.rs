@@ -116,3 +116,79 @@ pub trait Platform {
     // -- rumble --
     fn rumble(&mut self, strength: u8);
 }
+
+/// Hold-to-scroll repeat with hat-bounce debounce, device-tuned on the
+/// Hammer: instant first step, 260ms delay, 85ms rate, 20ms bounce window
+/// (80ms swallowed deliberate fast taps). Shared by the launcher and the
+/// frontend so every list in the OS scrolls the same way.
+pub struct Repeat {
+    pub held: [[bool; 2]; 3],
+    dir: i32,
+    prev_dir: i32,
+    since: std::time::Instant,
+    last: std::time::Instant,
+    released_at: std::time::Instant,
+}
+
+impl Repeat {
+    const DELAY: std::time::Duration = std::time::Duration::from_millis(260);
+    const RATE: std::time::Duration = std::time::Duration::from_millis(85);
+    const BOUNCE: std::time::Duration = std::time::Duration::from_millis(20);
+
+    pub fn new() -> Self {
+        let now = std::time::Instant::now();
+        Self {
+            held: [[false; 2]; 3],
+            dir: 0,
+            prev_dir: 0,
+            since: now,
+            last: now,
+            released_at: now - Self::BOUNCE,
+        }
+    }
+
+    pub fn clear(&mut self) {
+        self.held = [[false; 2]; 3];
+        self.dir = 0;
+    }
+
+    /// True while the user is holding a direction (repeat active).
+    pub fn holding(&self) -> bool {
+        self.dir != 0
+    }
+
+    /// Call once per frame after feeding `held`; returns -1/0/+1 steps.
+    pub fn step(&mut self, now: std::time::Instant) -> i32 {
+        let want: i32 = i32::from(self.held.iter().any(|h| h[1]))
+            - i32::from(self.held.iter().any(|h| h[0]));
+        let mut step = 0;
+        if want != self.dir {
+            if want == 0 {
+                self.prev_dir = self.dir;
+                self.released_at = now;
+                self.dir = 0;
+            } else if self.dir == 0
+                && want == self.prev_dir
+                && now - self.released_at < Self::BOUNCE
+            {
+                self.dir = want; // bounce: resume silently
+            } else {
+                self.dir = want;
+                step = want;
+                self.since = now;
+                self.last = now;
+            }
+        }
+        if self.dir != 0 && now - self.since > Self::DELAY && now - self.last >= Self::RATE {
+            step = self.dir;
+            self.last = now;
+        }
+        step
+    }
+}
+
+impl Default for Repeat {
+    fn default() -> Self {
+        Self::new()
+    }
+}
