@@ -16,6 +16,7 @@ use kui_hal::tg5040;
 use kui_hal::{Button, ButtonState, InputEvent, Repeat};
 use kui_libretro as lr;
 
+mod cheatdl;
 mod hardcore;
 
 const OUT_RATE: i32 = 48000;
@@ -339,28 +340,7 @@ fn run() -> i32 {
     // (desc, code, enabled)
     let mut cheats: Vec<(String, String, bool)> = Vec::new();
     if let Ok(text) = std::fs::read_to_string(&cheat_path) {
-        let val = |k: &str| -> Option<String> {
-            text.lines().find_map(|l| {
-                let (lk, lv) = l.split_once('=')?;
-                (lk.trim() == k).then(|| lv.trim().trim_matches('"').to_string())
-            })
-        };
-        let n: usize = val("cheats").and_then(|v| v.parse().ok()).unwrap_or(0);
-        for i in 0..n.min(200) {
-            let desc = val(&format!("cheat{i}_desc")).unwrap_or_else(|| format!("Cheat {i}"));
-            let Some(code) = val(&format!("cheat{i}_code")) else {
-                continue;
-            };
-            let file_on = val(&format!("cheat{i}_enable"))
-                .map(|v| v == "true")
-                .unwrap_or(false);
-            let on = match cfg.get_or(&format!("game.{tag}.{stem}.cheat.{i}"), "") {
-                "on" => true,
-                "off" => false,
-                _ => file_on,
-            };
-            cheats.push((desc, code, on));
-        }
+        cheats = parse_cht(&text, &cfg, &tag, &stem);
         if ra_hardcore {
             cheats.clear();
             println!("cheats skipped (RA hardcore)");
@@ -776,7 +756,9 @@ fn run() -> i32 {
     // the Options submenu family (Control Panel visual language)
     let opt_items: Vec<&str> = {
         let mut v2 = vec!["Core Options", "Controls"];
-        if !cheats.is_empty() {
+        // always offered (cheats can be downloaded in-place); hardcore
+        // sessions get no cheats surface at all per RA rules
+        if !ra_hardcore {
             v2.push("Cheats");
         }
         if ra.is_some() {
@@ -869,6 +851,8 @@ fn run() -> i32 {
 
     // hold-to-scroll for every menu list, same tuning as the launcher
     let mut nav_rep = Repeat::new();
+    // in-flight cheat download (Cheats screen row 0)
+    let mut cheat_dl: Option<std::sync::mpsc::Receiver<Result<(usize, String), String>>> = None;
     'run: loop {
         let mut menu_pressed = false;
         let mut sleep_req = false;
@@ -1810,33 +1794,49 @@ fn run() -> i32 {
             }
         }
         if let FeScreen::Cheats { sel, scroll } = &mut screen {
-            let n = cheats.len();
-            if n > 0 {
-                if up {
-                    *sel = (*sel + n - 1) % n;
-                }
-                if down {
-                    *sel = (*sel + 1) % n;
-                }
-                let visible = 8usize;
-                if *sel < *scroll {
-                    *scroll = *sel;
-                }
-                if *sel >= *scroll + visible {
-                    *scroll = *sel + 1 - visible;
-                }
-                if left || right || confirm {
-                    cheats[*sel].2 = !cheats[*sel].2;
-                    let shared = Path::new(&sd_root).join(".userdata/shared");
-                    let mut wcfg = kui_config::Config::load(&shared);
-                    wcfg.set(
-                        &format!("game.{tag}.{stem}.cheat.{}", *sel),
-                        if cheats[*sel].2 { "on" } else { "off" },
-                    );
-                    let _ = wcfg.save();
-                    let applied: Vec<(bool, String)> =
-                        cheats.iter().map(|(_, c, on)| (*on, c.clone())).collect();
-                    core.apply_cheats(&applied);
+            // row 0 = "Download cheats", cheat entries follow
+            let n = cheats.len() + 1;
+            if up {
+                *sel = (*sel + n - 1) % n;
+            }
+            if down {
+                *sel = (*sel + 1) % n;
+            }
+            let visible = 8usize;
+            if *sel < *scroll {
+                *scroll = *sel;
+            }
+            if *sel >= *scroll + visible {
+                *scroll = *sel + 1 - visible;
+            }
+            if (left || right || confirm) && *sel > 0 {
+                let ci = *sel - 1;
+                cheats[ci].2 = !cheats[ci].2;
+                let shared = Path::new(&sd_root).join(".userdata/shared");
+                let mut wcfg = kui_config::Config::load(&shared);
+                wcfg.set(
+                    &format!("game.{tag}.{stem}.cheat.{ci}"),
+                    if cheats[ci].2 { "on" } else { "off" },
+                );
+                let _ = wcfg.save();
+                let applied: Vec<(bool, String)> =
+                    cheats.iter().map(|(_, c, on)| (*on, c.clone())).collect();
+                core.apply_cheats(&applied);
+            } else if confirm && *sel == 0 && cheat_dl.is_none() {
+                let wifi_up = std::process::Command::new("sh")
+                    .args(["-c", "pidof wpa_supplicant >/dev/null 2>&1"])
+                    .status()
+                    .map(|st| st.success())
+                    .unwrap_or(false);
+                if !wifi_up {
+                    toast = Some(("WiFi is off".into(), Instant::now()));
+                } else {
+                    let (tx, rx) = std::sync::mpsc::channel();
+                    let (t2, s2, d2) = (tag.clone(), stem.clone(), cheat_path.clone());
+                    std::thread::spawn(move || {
+                        let _ = tx.send(cheatdl::download(&t2, &s2, &d2));
+                    });
+                    cheat_dl = Some(rx);
                 }
             }
             if back || menu_pressed {
@@ -1844,6 +1844,23 @@ fn run() -> i32 {
                 screen = FeScreen::OptionsMenu { sel: idx };
                 back = false;
                 menu_pressed = false;
+            }
+        }
+        // finished cheat download: reload the list, report either way
+        if let Some(rx) = &cheat_dl
+            && let Ok(res) = rx.try_recv()
+        {
+            cheat_dl = None;
+            match res {
+                Ok((n2, name)) => {
+                    if let Ok(text) = std::fs::read_to_string(&cheat_path) {
+                        let shared = Path::new(&sd_root).join(".userdata/shared");
+                        cheats =
+                            parse_cht(&text, &kui_config::Config::load(&shared), &tag, &stem);
+                    }
+                    toast = Some((format!("{n2} cheats: {name}"), Instant::now()));
+                }
+                Err(e) => toast = Some((e, Instant::now())),
             }
         }
         if let FeScreen::OptionsMenu { sel } = &mut screen {
@@ -2250,27 +2267,36 @@ fn run() -> i32 {
             && let Some(f) = font.as_mut()
         {
             let top = 40.0;
-            for (i, (desc, _, on)) in
-                cheats.iter().enumerate().skip(*scroll).take(8)
-            {
+            let total = cheats.len() + 1;
+            for i in *scroll..(*scroll + 8).min(total) {
                 let row = i - *scroll;
                 let y = top + row as f32 * ROW_H;
                 let lh = f.line_height(26);
                 let pill_y = y + (ROW_H - PILL_H as f32) / 2.0;
                 let text_y = pill_y + (PILL_H as f32 - lh) / 2.0;
-                let val = if *on { "On" } else { "Off" };
-                let vw = f.measure(gl, val, 26);
+                let (desc, val) = if i == 0 {
+                    let label = if cheat_dl.is_some() {
+                        "Downloading..."
+                    } else {
+                        "Download cheats"
+                    };
+                    (label.to_string(), String::new())
+                } else {
+                    let (d, _, on) = &cheats[i - 1];
+                    (d.clone(), (if *on { "On" } else { "Off" }).to_string())
+                };
+                let vw = f.measure(gl, &val, 26);
                 if i == *sel {
                     let sel_c = theme_c1;
                     fe_draw_roll(
-                        f, &renderer, gl, &mut roll_state, "cheats", desc, 72.0, text_y,
+                        f, &renderer, gl, &mut roll_state, "cheats", &desc, 72.0, text_y,
                         pill_y, PILL_H as f32, 26, sel_c, sw as f32 * 0.62,
                     );
-                    f.draw(&renderer, gl, val, sw as f32 - 72.0 - vw, text_y, 26, sel_c);
+                    f.draw(&renderer, gl, &val, sw as f32 - 72.0 - vw, text_y, 26, sel_c);
                 } else {
-                    let shown = f.fit(gl, desc, 26, sw as f32 * 0.62);
+                    let shown = f.fit(gl, &desc, 26, sw as f32 * 0.62);
                     f.draw(&renderer, gl, &shown, 72.0, text_y, 26, theme_c4);
-                    f.draw(&renderer, gl, val, sw as f32 - 72.0 - vw, text_y, 26, theme_c4);
+                    f.draw(&renderer, gl, &val, sw as f32 - 72.0 - vw, text_y, 26, theme_c4);
                 }
             }
         }
@@ -2906,6 +2932,38 @@ fn rzip_decompress(data: &[u8]) -> Vec<u8> {
 /// One save write, honouring the rzip toggle for this file class.
 fn write_save(path: &std::path::Path, bytes: &[u8], compress: bool) -> std::io::Result<()> {
     if compress { std::fs::write(path, rzip_compress(bytes)) } else { std::fs::write(path, bytes) }
+}
+
+/// Parse a RetroArch-format .cht: (desc, code, enabled) per cheat, with
+/// the per-game config enable overriding the file's own flag.
+fn parse_cht(
+    text: &str,
+    cfg: &kui_config::Config,
+    tag: &str,
+    stem: &str,
+) -> Vec<(String, String, bool)> {
+    let val = |k: &str| -> Option<String> {
+        text.lines().find_map(|l| {
+            let (lk, lv) = l.split_once('=')?;
+            (lk.trim() == k).then(|| lv.trim().trim_matches('"').to_string())
+        })
+    };
+    let n: usize = val("cheats").and_then(|v| v.parse().ok()).unwrap_or(0);
+    let mut out = Vec::new();
+    for i in 0..n.min(200) {
+        let desc = val(&format!("cheat{i}_desc")).unwrap_or_else(|| format!("Cheat {i}"));
+        let Some(code) = val(&format!("cheat{i}_code")) else {
+            continue;
+        };
+        let file_on = val(&format!("cheat{i}_enable")).map(|v| v == "true").unwrap_or(false);
+        let on = match cfg.get_or(&format!("game.{tag}.{stem}.cheat.{i}"), "") {
+            "on" => true,
+            "off" => false,
+            _ => file_on,
+        };
+        out.push((desc, code, on));
+    }
+    out
 }
 
 /// Snapshot the RA achievement runtime beside a freshly written state, or

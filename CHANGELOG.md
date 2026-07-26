@@ -39,6 +39,12 @@
   approves kUI as a client, the server records hardcore unlocks as
   softcore — the behavior ships now so the approval clock and audit have
   something real to look at.
+- **Cheat downloads, RetroArch-style.** The in-game Cheats menu is now
+  always available (except in RA hardcore) and its first entry downloads
+  the running game's cheat file from the libretro cheat database — the
+  same files RetroArch's online updater ships — matched by name with a
+  preference for USA/World dumps. Needs WiFi; the file lands in
+  `Cheats/<TAG>/<rom>.cht` so it loads automatically from then on.
 - **Hold-to-scroll everywhere.** The in-game menus (Core Options, cheats,
   shortcuts, and every other list) now auto-repeat while up/down is held,
   with the same tuning as the launcher lists — one shared implementation
