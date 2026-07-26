@@ -28,6 +28,9 @@ const INPUTD_DIR: &str = "/tmp/trimui_inputd";
 
 const BATT: &str = "/sys/class/power_supply/axp2202-battery/capacity";
 const STATUS: &str = "/sys/class/power_supply/axp2202-battery/status";
+const CPU_TEMP: &str = "/sys/class/thermal/thermal_zone0/temp";
+const CPU_FREQ: &str = "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq";
+const CPU_COOLING: &str = "/sys/class/thermal/cooling_device0/cur_state";
 
 /// "Unchanged" sentinel for fn.* override values.
 const NO_CHANGE: i32 = -69;
@@ -714,7 +717,9 @@ fn main() {
             write_percbat(p);
             last_batt = batt;
         }
-        // battery sample once a minute: epoch, capacity %, charging flag
+        // sample once a minute: epoch, capacity %, charging flag, cpu °C,
+        // cur freq kHz, thermal-throttle step (-1 = node unreadable).
+        // The thermal columns are the wedge/temp correlation evidence.
         if ticks.is_multiple_of(20)
             && let (Some(pct), Ok(now)) = (
                 batt,
@@ -724,13 +729,25 @@ fn main() {
             let charging = std::fs::read_to_string(STATUS)
                 .map(|s| s.trim() == "Charging")
                 .unwrap_or(false);
+            let temp_c = read_i32(CPU_TEMP).map(|t| t / 1000).unwrap_or(-1);
+            let freq = read_i32(CPU_FREQ).unwrap_or(-1);
+            let cool = read_i32(CPU_COOLING).unwrap_or(-1);
             if let Some(dir) = battlog.parent() {
                 let _ = std::fs::create_dir_all(dir);
             }
             if let Ok(mut f) =
                 std::fs::OpenOptions::new().append(true).create(true).open(&battlog)
             {
-                let _ = writeln!(f, "{}\t{}\t{}", now.as_secs(), pct, charging as u8);
+                let _ = writeln!(
+                    f,
+                    "{}\t{}\t{}\t{}\t{}\t{}",
+                    now.as_secs(),
+                    pct,
+                    charging as u8,
+                    temp_c,
+                    freq,
+                    cool
+                );
             }
         }
         // 3s cycle in short hops so SIGTERM lands within ~250ms

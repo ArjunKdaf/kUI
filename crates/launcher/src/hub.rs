@@ -392,6 +392,10 @@ pub fn pages(device_name: &str, stock_ver: &str, busybox_ver: &str) -> Vec<Page>
                     desc: "Press A to cache every game's achievement data for offline play. A again cancels.",
                     kind: ItemKind::Action,
                 },
+                // RA Hardcore stays UI-hidden until RetroAchievements
+                // approves kUI as a client (unlocks are server-demoted to
+                // softcore until then). The ra.hardcore config key is live
+                // for testing; restore the Item here once approval lands.
                 Item {
                     label: "Notification duration",
                     key: "notify.duration",
@@ -457,6 +461,18 @@ pub fn pages(device_name: &str, stock_ver: &str, busybox_ver: &str) -> Vec<Page>
                 label: "Use extracted name",
                 key: "save.extracted",
                 desc: "Zipped games save under the inner rom's name.",
+                kind: ItemKind::Choice(&[("off", "Off"), ("on", "On")]),
+            },
+            Item {
+                label: "Save compression",
+                key: "save.compress",
+                desc: "Write battery saves rzip-compressed (RetroArch format).",
+                kind: ItemKind::Choice(&[("off", "Off"), ("on", "On")]),
+            },
+            Item {
+                label: "State compression",
+                key: "state.compress",
+                desc: "Write save states rzip-compressed (RetroArch format).",
                 kind: ItemKind::Choice(&[("off", "Off"), ("on", "On")]),
             },
             Item {

@@ -4,6 +4,49 @@
 
 ### New
 
+- **Power profiles actually manage heat now.** All three profiles run the
+  schedutil governor (idle always clocks down) and differ by frequency
+  ceiling: Performance is uncapped, Auto caps at the 1.4GHz step,
+  Powersave at the 1.0GHz step. The profile applies per game with a
+  per-system default — set it in Core Options (new "Power Profile" row,
+  stored as `fe.<TAG>.power`, per-game override `game.<TAG>.<rom>.power`),
+  falling back to the global System setting. Powersave is plenty for
+  GB/GBC/GBA-class cores and keeps a long session dramatically cooler —
+  an uncapped Hoenn hack session hit 79°C and wedged a CPU core.
+- **RetroArch-compatible save compression.** New System toggles "Save
+  compression" and "State compression" write battery saves and save
+  states in RetroArch's rzip container (`#RZIPv1#`, chunked zlib), so
+  compressed saves move freely between kUI and RetroArch devices.
+  Reading is always transparent: raw or rzip, either loads regardless of
+  the toggle, so flipping the option never strands an existing save.
+  Complements the existing "Save format" (.srm/.sav) choice.
+- **RetroAchievements hardcore, audit-ready.** Hardcore mode (config key
+  `ra.hardcore`, default off; the Control Panel toggle stays hidden until
+  RetroAchievements approves kUI as a client) implements RA's published
+  hardcore compliance rules: save states can be created but never loaded
+  (auto-resume boots fresh, Load hidden from the menu), cheats are never
+  applied, and rc_client reset requests restart the game. Achievement
+  runtime now rides beside every save state (`.rap` sidecar) so softcore
+  state loads restore progress correctly, RA disconnect/reconnect and
+  mastery events surface as toasts, and kUI identifies itself with its
+  own stable user agent (`kUI/<version> (TrimUI; Linux) rc_client/…`).
+  In hardcore, save-and-quit (menu+Start) simply quits: the in-game save
+  is the only continuation point, so no resume state or slot is written
+  (the battery save always flushes on exit). Until RetroAchievements
+  approves kUI as a client, the server records hardcore unlocks as
+  softcore — the behavior ships now so the approval clock and audit have
+  something real to look at.
+- **Thermal telemetry.** kuid's minute-by-minute battery log
+  (`.userdata/shared/kui/battlog.txt`) now also records CPU temperature,
+  current CPU frequency, and the kernel's thermal-throttle step —
+  the evidence trail for heat-related crash hunting.
+
+- **Core license inventory.** `LICENSES/CORES.md` lists every shipped
+  libretro core with its upstream repository and license (verified against
+  libretro docs and each upstream), including a note on the four
+  non-commercial cores (fbneo, opera, picodrive, snes9x). Ships on the card
+  with the other license notices.
+
 - **Default collections.** kUI ships built-in franchise collections —
   Mario, Pokémon, Zelda, Mega Man, Castlevania, Final Fantasy, Sonic,
   Dragon Quest, Metroid, Kirby, and ~30 more — that appear on their own the

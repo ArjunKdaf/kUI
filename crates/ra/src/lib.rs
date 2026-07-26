@@ -208,6 +208,23 @@ unsafe extern "C" {
         grouping: c_int,
     ) -> *mut RcClientAchievementList;
     fn rc_client_destroy_achievement_list(list: *mut RcClientAchievementList);
+    fn rc_client_reset(client: *mut RcClient);
+    fn rc_client_progress_size(client: *mut RcClient) -> usize;
+    fn rc_client_serialize_progress_sized(
+        client: *mut RcClient,
+        buffer: *mut u8,
+        buffer_size: usize,
+    ) -> c_int;
+    fn rc_client_deserialize_progress_sized(
+        client: *mut RcClient,
+        serialized: *const u8,
+        serialized_size: usize,
+    ) -> c_int;
+    fn rc_client_get_user_agent_clause(
+        client: *mut RcClient,
+        buffer: *mut c_char,
+        buffer_size: usize,
+    ) -> usize;
 }
 
 // ---------------------------------------------------------------------------
@@ -472,7 +489,7 @@ fn curl_http(req: &HttpRequest) -> Result<HttpResponse, String> {
         .arg("--max-time")
         .arg("15")
         .arg("-A")
-        .arg("kui-ra/0.1 (rcheevos)");
+        .arg(user_agent());
     // the device ships no CA store; kUI carries a bundle on the card
     let ca = "/mnt/SDCARD/.system/res/cacert.pem";
     if std::path::Path::new(ca).is_file() {
@@ -514,6 +531,25 @@ fn curl_http(req: &HttpRequest) -> Result<HttpResponse, String> {
 }
 
 // ---------------------------------------------------------------------------
+// User agent — RA compliance requires a unique, stable
+// `EmulatorName/vX.Y.Z (OS) core/vN` identity, not a library default.
+// The frontend composes and installs it before the first request.
+// ---------------------------------------------------------------------------
+
+static USER_AGENT: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+/// Install the client identity used on every RA request. First caller
+/// wins; call before login. See docs.retroachievements.org hardcore
+/// compliance ("unique user agent").
+pub fn set_user_agent(ua: &str) {
+    let _ = USER_AGENT.set(ua.to_string());
+}
+
+fn user_agent() -> &'static str {
+    USER_AGENT.get().map(String::as_str).unwrap_or("kUI/unknown (Linux)")
+}
+
+// ---------------------------------------------------------------------------
 // RaClient — the safe wrapper
 // ---------------------------------------------------------------------------
 
@@ -531,8 +567,10 @@ impl RaClient {
     /// address into guest memory: fill `buffer` and return the number of
     /// bytes provided (0 if the address is invalid).
     ///
-    /// Hardcore mode is disabled at creation (kUI policy: softcore until
-    /// upstream hardcore approval lands).
+    /// Hardcore starts disabled; the frontend opts in per session via
+    /// [`RaClient::set_hardcore_enabled`] before loading the game. Until
+    /// kUI holds RA client approval the server demotes hardcore unlocks
+    /// to softcore, but the gating behavior ships ready for audit.
     pub fn new(
         read_memory: impl FnMut(u32, &mut [u8]) -> u32 + 'static,
     ) -> Result<RaClient, String> {
@@ -680,6 +718,48 @@ impl RaClient {
     /// Enable/disable hardcore mode. Disabled by default in kUI.
     pub fn set_hardcore_enabled(&mut self, enabled: bool) {
         unsafe { rc_client_set_hardcore_enabled(self.client, enabled as c_int) };
+    }
+
+    /// Ask the emulated system to reset. Required after a casual->hardcore
+    /// switch (rc_client raises `RaEvent::Reset` for the same purpose).
+    pub fn reset(&mut self) {
+        unsafe { rc_client_reset(self.client) };
+    }
+
+    /// Snapshot the achievement runtime for embedding beside a save state.
+    pub fn serialize_progress(&mut self) -> Option<Vec<u8>> {
+        let size = unsafe { rc_client_progress_size(self.client) };
+        if size == 0 {
+            return None;
+        }
+        let mut buf = vec![0u8; size];
+        let rc =
+            unsafe { rc_client_serialize_progress_sized(self.client, buf.as_mut_ptr(), size) };
+        (rc == RC_OK).then_some(buf)
+    }
+
+    /// Restore the achievement runtime captured with a save state. `None`
+    /// resets the runtime to its initial state (the right call when a
+    /// state has no progress sidecar).
+    pub fn deserialize_progress(&mut self, data: Option<&[u8]>) -> bool {
+        let rc = match data {
+            Some(d) => unsafe {
+                rc_client_deserialize_progress_sized(self.client, d.as_ptr(), d.len())
+            },
+            None => unsafe {
+                rc_client_deserialize_progress_sized(self.client, std::ptr::null(), 0)
+            },
+        };
+        rc == RC_OK
+    }
+
+    /// rcheevos' own User-Agent suffix, e.g. "rc_client/12.3.0".
+    pub fn user_agent_clause(&self) -> String {
+        let mut buf = [0u8; 64];
+        let n = unsafe {
+            rc_client_get_user_agent_clause(self.client, buf.as_mut_ptr() as *mut c_char, buf.len())
+        };
+        String::from_utf8_lossy(&buf[..n.min(buf.len() - 1)]).into_owned()
     }
 
     /// Whether hardcore mode is currently enabled.

@@ -341,6 +341,39 @@ pub fn suspend_to_ram() -> std::io::Result<()> {
     std::fs::write("/sys/power/state", "mem")
 }
 
+/// SPEC services: power profile — cpufreq policy0 sysfs. schedutil for
+/// every profile so an idle SoC always clocks down; profiles differ only
+/// by the frequency ceiling: performance = uncapped, auto = 1.4GHz-class,
+/// powersave = 1.0GHz-class (nearest available step at or below the
+/// target). Min freq stays pinned to the lowest step. The ceilings are
+/// the thermal defense: the SoC hit 79°C uncapped and the A133P has
+/// wedged a core under sustained heat.
+pub fn apply_power_profile(profile: &str) {
+    let pol = std::path::Path::new("/sys/devices/system/cpu/cpufreq/policy0");
+    let mut freqs: Vec<u64> =
+        std::fs::read_to_string(pol.join("scaling_available_frequencies"))
+            .unwrap_or_default()
+            .split_whitespace()
+            .filter_map(|s| s.parse().ok())
+            .collect();
+    freqs.sort_unstable();
+    freqs.dedup();
+    let (Some(&lowest), Some(&highest)) = (freqs.first(), freqs.last()) else {
+        return;
+    };
+    let cap = |target: u64| {
+        freqs.iter().rev().find(|&&f| f <= target).copied().unwrap_or(lowest)
+    };
+    let max = match profile {
+        "performance" => highest,
+        "powersave" => cap(1_008_000),
+        _ => cap(1_416_000),
+    };
+    let _ = std::fs::write(pol.join("scaling_min_freq"), lowest.to_string());
+    let _ = std::fs::write(pol.join("scaling_governor"), "schedutil");
+    let _ = std::fs::write(pol.join("scaling_max_freq"), max.to_string());
+}
+
 /// Joystick button indices (Brick-class).
 pub mod joy {
     pub const B: u8 = 0;

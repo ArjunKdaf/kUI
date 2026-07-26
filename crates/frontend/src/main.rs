@@ -317,6 +317,11 @@ fn run() -> i32 {
         .file_name()
         .map(|s| s.to_string_lossy().into_owned())
         .unwrap_or_default();
+    // RA hardcore (docs.retroachievements.org hardcore compliance): the
+    // toggle governs the whole session — cheats never touch memory, save
+    // states may be written but never loaded. Read before cheat apply.
+    let ra_hardcore =
+        cfg.get_or("ra.enabled", "off") == "on" && cfg.get_or("ra.hardcore", "off") == "on";
     // cheats: standard .cht at Cheats/<TAG>/<stem>.cht, enables persisted
     let cheat_path = Path::new(&sd_root).join("Cheats").join(&tag).join(format!("{stem}.cht"));
     // (desc, code, enabled)
@@ -344,12 +349,18 @@ fn run() -> i32 {
             };
             cheats.push((desc, code, on));
         }
-        let applied: Vec<(bool, String)> =
-            cheats.iter().map(|(_, c, on)| (*on, c.clone())).collect();
-        core.apply_cheats(&applied);
+        if ra_hardcore {
+            cheats.clear();
+            println!("cheats skipped (RA hardcore)");
+        } else {
+            let applied: Vec<(bool, String)> =
+                cheats.iter().map(|(_, c, on)| (*on, c.clone())).collect();
+            core.apply_cheats(&applied);
+        }
     }
 
-    // RetroAchievements session (softcore; hardcore waits for upstream).
+    // RetroAchievements session (hardcore honored when the user opted in;
+    // unlocks stay server-demoted to softcore until kUI's RA approval).
     // Token login + game identify are synchronous; only attempted online.
     let mut ra: Option<kui_ra::RaClient> = None;
     let mut ra_announce: Option<String> = None;
@@ -385,6 +396,16 @@ fn run() -> i32 {
                 }
             }) {
                 Ok(mut c) => {
+                    // unique stable identity, RA-required format:
+                    // EmulatorName/version (platform) rc_client/version
+                    kui_ra::set_user_agent(&format!(
+                        "kUI/{} (TrimUI; Linux) {}",
+                        include_str!("../../../VERSION").trim(),
+                        c.user_agent_clause()
+                    ));
+                    if ra_hardcore {
+                        c.set_hardcore_enabled(true);
+                    }
                     match c.login_with_token(&ra_user, &ra_token) {
                         Ok(()) => match c.load_game(&load_path) {
                             Ok(()) if c.is_game_loaded() => {
@@ -459,15 +480,33 @@ fn run() -> i32 {
         stem.clone()
     };
     let save_ext = if cfg.get_or("save.format", "srm") == "sav" { "sav" } else { "srm" };
+    let save_compress = cfg.get_or("save.compress", "off") == "on";
+    let state_compress = cfg.get_or("state.compress", "off") == "on";
     let sav_path = save_dir.join(format!("{save_stem}.{save_ext}"));
     let rtc_path = save_dir.join(format!("{rom_file}.rtc"));
     if let Ok(bytes) = std::fs::read(&sav_path) {
+        let bytes = rzip_decompress(&bytes);
         core.load_sram(&bytes);
         println!("srm loaded ({} bytes)", bytes.len());
     }
     if let Ok(bytes) = std::fs::read(&rtc_path) {
-        core.load_rtc(&bytes);
+        core.load_rtc(&rzip_decompress(&bytes));
     }
+    // per-game > per-system > global power profile. session.sh forces the
+    // performance governor around every launch, so the cap is asserted here.
+    let power_profile = {
+        let per_game = cfg.get_or(&format!("game.{tag}.{stem}.power"), "").to_string();
+        let per_sys = cfg.get_or(&format!("fe.{tag}.power"), "").to_string();
+        if !per_game.is_empty() {
+            per_game
+        } else if !per_sys.is_empty() {
+            per_sys
+        } else {
+            cfg.get_or("power.profile", "auto").to_string()
+        }
+    };
+    tg5040::apply_power_profile(&power_profile);
+    println!("power profile: {power_profile}");
     let core_stem = core_path
         .file_stem()
         .map(|s| s.to_string_lossy().replace("_libretro", ""))
@@ -484,6 +523,13 @@ fn run() -> i32 {
         }
     };
     let preview_path = |slot: usize| states_dir.join(format!("{stem}.state{slot}.png"));
+    // achievement runtime rides beside each state (rc_client integration
+    // guide: serialize on state save, deserialize on load, reset if absent)
+    let rap_path = |slot: usize| {
+        let mut s = state_path(slot).into_os_string();
+        s.push(".rap");
+        std::path::PathBuf::from(s)
+    };
 
     // the selected slot (1-8) is the resume point, persisted per game
     let slot_file = states_dir.join(format!("{stem}.slot"));
@@ -494,7 +540,7 @@ fn run() -> i32 {
         .unwrap_or(0);
     // legacy migration: a one-time .state.auto beats an empty slot
     let auto_state = states_dir.join(format!("{stem}.state.auto"));
-    let mut pending_resume = std::fs::read(&auto_state).ok();
+    let mut pending_resume = std::fs::read(&auto_state).ok().map(|b| rzip_decompress(&b));
     if pending_resume.is_some() {
         let _ = std::fs::remove_file(&auto_state);
     }
@@ -711,8 +757,13 @@ fn run() -> i32 {
     let mut out_buf: Vec<i16> = Vec::with_capacity(4096);
     let mut last_sram_flush = Instant::now();
     let simple = cfg.get_or("ui.simple", "off") == "on";
-    let menu_items: Vec<&str> =
+    let mut menu_items: Vec<&str> =
         if simple { MENU_SIMPLE.to_vec() } else { MENU_FULL.to_vec() };
+    if ra_hardcore {
+        // hardcore: the menu shows no state UI at all — the in-game save
+        // is the continuation point (loading states is banned by RA rules)
+        menu_items.retain(|m| *m != "Load" && *m != "Save");
+    }
     // the Options submenu family (Control Panel visual language)
     let opt_items: Vec<&str> = {
         let mut v2 = vec!["Core Options", "Controls"];
@@ -764,9 +815,19 @@ fn run() -> i32 {
     if std::env::var_os("KUI_TRACE").is_some() {
         eprintln!("resume: slot {} path {:?}", slot, state_path(slot));
     }
-    // resume from the selected slot; fall back to a legacy auto state
-    if let Ok(bytes) = std::fs::read(state_path(slot)) {
+    // resume from the selected slot; fall back to a legacy auto state.
+    // Hardcore: states may exist but are never loaded — always boot fresh.
+    if ra_hardcore {
+        if pending_resume.take().is_some() || state_path(slot).exists() {
+            toast = Some(("Hardcore: fresh start".into(), Instant::now()));
+        }
+    } else if let Ok(bytes) = std::fs::read(state_path(slot)) {
+        let bytes = rzip_decompress(&bytes);
         if core.load_state(&bytes) {
+            if let Some(c) = ra.as_mut() {
+                let side = std::fs::read(rap_path(slot)).ok();
+                c.deserialize_progress(side.as_deref());
+            }
             toast = Some((format!("Resumed slot {}", slot + 1), Instant::now()));
         } else {
             eprintln!("state resume failed: {} bytes, slot {}", bytes.len(), slot);
@@ -775,6 +836,9 @@ fn run() -> i32 {
     } else if let Some(bytes) = pending_resume.take()
         && core.load_state(&bytes)
     {
+        if let Some(c) = ra.as_mut() {
+            c.deserialize_progress(None);
+        }
         toast = Some(("Resumed".into(), Instant::now()));
     }
     // achievements announce themselves at launch, top-left channel
@@ -923,7 +987,11 @@ fn run() -> i32 {
                                 "save" => {
                                     if let Some(state) = core.save_state() {
                                         let ok =
-                                            std::fs::write(state_path(slot), &state).is_ok();
+                                            write_save(&state_path(slot), &state, state_compress)
+                                                .is_ok();
+                                        if ok {
+                                            write_progress_sidecar(&mut ra, &rap_path(slot));
+                                        }
                                         if ok && last_frame.0 > 0 {
                                             let _ = kui_gfx::encode_png(
                                                 &preview_path(slot),
@@ -942,9 +1010,18 @@ fn run() -> i32 {
                                     }
                                 }
                                 "load" => {
-                                    if let Ok(bytes) = std::fs::read(state_path(slot))
-                                        && core.load_state(&bytes)
+                                    if ra_hardcore {
+                                        toast = Some((
+                                            "Load disabled in hardcore".into(),
+                                            Instant::now(),
+                                        ));
+                                    } else if let Ok(bytes) = std::fs::read(state_path(slot))
+                                        && core.load_state(&rzip_decompress(&bytes))
                                     {
+                                        if let Some(c) = ra.as_mut() {
+                                            let side = std::fs::read(rap_path(slot)).ok();
+                                            c.deserialize_progress(side.as_deref());
+                                        }
                                         if notify_load {
                                             toast = Some((
                                                 format!("Loaded slot {}", slot + 1),
@@ -1164,30 +1241,43 @@ fn run() -> i32 {
             }
         }
         if save_quit {
-            if let Some(state) = core.save_state() {
-                let ok = std::fs::write(state_path(slot), &state).is_ok();
-                if ok && last_frame.0 > 0 {
-                    let _ = kui_gfx::encode_png(
-                        &preview_path(slot),
-                        last_frame.0,
-                        last_frame.1,
-                        &last_frame.2,
-                    );
+            // hardcore: the in-game save is the only continuation point,
+            // so menu+start just quits — no state, no resume slot (SRAM
+            // still flushes on exit below)
+            if !ra_hardcore {
+                if let Some(state) = core.save_state() {
+                    let ok = write_save(&state_path(slot), &state, state_compress).is_ok();
+                    if ok {
+                        write_progress_sidecar(&mut ra, &rap_path(slot));
+                    }
+                    if ok && last_frame.0 > 0 {
+                        let _ = kui_gfx::encode_png(
+                            &preview_path(slot),
+                            last_frame.0,
+                            last_frame.1,
+                            &last_frame.2,
+                        );
+                    }
                 }
+                let _ = std::fs::write(&slot_file, slot.to_string());
             }
-            let _ = std::fs::write(&slot_file, slot.to_string());
             break 'run;
         }
         if sleep_req {
             // insurance: a dead battery during sleep must not lose progress
             if let Some(sram) = core.sram() {
-                let _ = std::fs::write(&sav_path, sram);
+                let _ = write_save(&sav_path, sram, save_compress);
             }
             if let Some(rtc) = core.rtc() {
                 let _ = std::fs::write(&rtc_path, rtc);
             }
             if let Some(state) = core.save_state() {
-                if std::fs::write(state_path(slot), &state).is_ok() && last_frame.0 > 0 {
+                let ok = write_save(&state_path(slot), &state, state_compress).is_ok();
+                if ok {
+                    write_progress_sidecar(&mut ra, &rap_path(slot));
+                }
+                if ok && last_frame.0 > 0
+                {
                     let _ = kui_gfx::encode_png(
                         &preview_path(slot),
                         last_frame.0,
@@ -1212,7 +1302,7 @@ fn run() -> i32 {
                 if menu_pressed {
                     // entering the menu: flush SRAM, pause audio
                     if let Some(sram) = core.sram() {
-                        let _ = std::fs::write(&sav_path, sram);
+                        let _ = write_save(&sav_path, sram, save_compress);
                     }
                     if let Some(rtc) = core.rtc() {
                         let _ = std::fs::write(&rtc_path, rtc);
@@ -1251,19 +1341,46 @@ fn run() -> i32 {
                     if let Some(c) = ra.as_mut() {
                         c.do_frame();
                         for ev in c.drain_events() {
-                            if let kui_ra::RaEvent::AchievementUnlocked(a) = ev {
-                                ra_toast = Some((
-                                    format!("{} (+{} pts)", a.title, a.points),
-                                    Instant::now(),
-                                ));
-                                // The Dude counts these
-                                let p = Path::new(&sd_root)
-                                    .join(".userdata/shared/kui/ra_unlocks.txt");
-                                let n3: u64 = std::fs::read_to_string(&p)
-                                    .ok()
-                                    .and_then(|s2| s2.trim().parse().ok())
-                                    .unwrap_or(0);
-                                let _ = std::fs::write(&p, (n3 + 1).to_string());
+                            match ev {
+                                kui_ra::RaEvent::AchievementUnlocked(a) => {
+                                    ra_toast = Some((
+                                        format!("{} (+{} pts)", a.title, a.points),
+                                        Instant::now(),
+                                    ));
+                                    // The Dude counts these
+                                    let p = Path::new(&sd_root)
+                                        .join(".userdata/shared/kui/ra_unlocks.txt");
+                                    let n3: u64 = std::fs::read_to_string(&p)
+                                        .ok()
+                                        .and_then(|s2| s2.trim().parse().ok())
+                                        .unwrap_or(0);
+                                    let _ = std::fs::write(&p, (n3 + 1).to_string());
+                                }
+                                kui_ra::RaEvent::GameCompleted => {
+                                    ra_toast =
+                                        Some(("Game mastered!".into(), Instant::now()));
+                                }
+                                kui_ra::RaEvent::Reset => {
+                                    // rc_client demands a full reset (e.g.
+                                    // switching into hardcore mid-session)
+                                    core.reset();
+                                    ra_toast =
+                                        Some(("Game reset (RA)".into(), Instant::now()));
+                                }
+                                kui_ra::RaEvent::Disconnected => {
+                                    ra_toast = Some((
+                                        "RA offline — unlocks will queue".into(),
+                                        Instant::now(),
+                                    ));
+                                }
+                                kui_ra::RaEvent::Reconnected => {
+                                    ra_toast =
+                                        Some(("RA back online".into(), Instant::now()));
+                                }
+                                kui_ra::RaEvent::ServerError { api, message } => {
+                                    eprintln!("ra server error: {api}: {message}");
+                                }
+                                kui_ra::RaEvent::Other(_) => {}
                             }
                         }
                     }
@@ -1339,7 +1456,11 @@ fn run() -> i32 {
                         "Save" => {
                             // save state + preview
                             if let Some(state) = core.save_state() {
-                                let ok = std::fs::write(state_path(slot), &state).is_ok();
+                                let ok =
+                                    write_save(&state_path(slot), &state, state_compress).is_ok();
+                                if ok {
+                                    write_progress_sidecar(&mut ra, &rap_path(slot));
+                                }
                                 if ok && last_frame.0 > 0 {
                                     let _ = kui_gfx::encode_png(
                                         &preview_path(slot),
@@ -1359,7 +1480,11 @@ fn run() -> i32 {
                         }
                         "Load" => {
                             if let Ok(bytes) = std::fs::read(state_path(slot)) {
-                                if core.load_state(&bytes) {
+                                if core.load_state(&rzip_decompress(&bytes)) {
+                                    if let Some(c) = ra.as_mut() {
+                                        let side = std::fs::read(rap_path(slot)).ok();
+                                        c.deserialize_progress(side.as_deref());
+                                    }
                                     if notify_load {
                                         toast = Some((
                                             format!("Loaded slot {}", slot + 1),
@@ -2517,7 +2642,7 @@ fn run() -> i32 {
 
         if matches!(screen, FeScreen::Game) && last_sram_flush.elapsed().as_secs() >= 30 {
             if let Some(sram) = core.sram() {
-                let _ = std::fs::write(&sav_path, sram);
+                let _ = write_save(&sav_path, sram, save_compress);
             }
             if let Some(rtc) = core.rtc() {
                 let _ = std::fs::write(&rtc_path, rtc);
@@ -2527,7 +2652,7 @@ fn run() -> i32 {
     }
 
     if let Some(sram) = core.sram() {
-        let _ = std::fs::write(&sav_path, sram);
+        let _ = write_save(&sav_path, sram, save_compress);
         println!("srm saved");
     }
     if let Some(rtc) = core.rtc() {
@@ -2703,4 +2828,76 @@ fn fe_draw_roll(
     r.scissor(gl, x, y_clip, max_w, h_clip);
     f.draw(r, gl, text, x - off, y_text, size, color);
     r.scissor_off(gl);
+}
+
+// ---------------------------------------------------------------- rzip
+// RetroArch's rzip container ("#RZIPv1#"): 8-byte magic, u32 LE chunk
+// size, u64 LE total uncompressed size, then u32 LE compressed length +
+// zlib stream per chunk. Reads are always transparent (raw or rzip, so
+// cards move freely between kUI and RetroArch devices); writes are
+// opt-in via save.compress / state.compress.
+const RZIP_MAGIC: &[u8; 8] = b"#RZIPv1#";
+const RZIP_CHUNK: usize = 128 * 1024;
+
+fn rzip_compress(data: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(20 + data.len() / 2);
+    out.extend_from_slice(RZIP_MAGIC);
+    out.extend_from_slice(&(RZIP_CHUNK as u32).to_le_bytes());
+    out.extend_from_slice(&(data.len() as u64).to_le_bytes());
+    for chunk in data.chunks(RZIP_CHUNK) {
+        let z = miniz_oxide::deflate::compress_to_vec_zlib(chunk, 6);
+        out.extend_from_slice(&(z.len() as u32).to_le_bytes());
+        out.extend_from_slice(&z);
+    }
+    out
+}
+
+/// Raw bytes pass through untouched; a malformed container falls back to
+/// the original bytes so a truncated header can never eat a save.
+fn rzip_decompress(data: &[u8]) -> Vec<u8> {
+    let Some(rest) = data.strip_prefix(RZIP_MAGIC) else {
+        return data.to_vec();
+    };
+    if rest.len() < 12 {
+        return data.to_vec();
+    }
+    let total = u64::from_le_bytes(rest[4..12].try_into().unwrap()) as usize;
+    let mut out = Vec::with_capacity(total.min(64 * 1024 * 1024));
+    let mut p = &rest[12..];
+    while !p.is_empty() {
+        if p.len() < 4 {
+            return data.to_vec();
+        }
+        let n = u32::from_le_bytes(p[..4].try_into().unwrap()) as usize;
+        p = &p[4..];
+        if p.len() < n {
+            return data.to_vec();
+        }
+        match miniz_oxide::inflate::decompress_to_vec_zlib(&p[..n]) {
+            Ok(mut c) => out.append(&mut c),
+            Err(_) => return data.to_vec(),
+        }
+        p = &p[n..];
+    }
+    out
+}
+
+/// One save write, honouring the rzip toggle for this file class.
+fn write_save(path: &std::path::Path, bytes: &[u8], compress: bool) -> std::io::Result<()> {
+    if compress { std::fs::write(path, rzip_compress(bytes)) } else { std::fs::write(path, bytes) }
+}
+
+/// Snapshot the RA achievement runtime beside a freshly written state, or
+/// clear a stale sidecar when there is nothing to snapshot.
+fn write_progress_sidecar(ra: &mut Option<kui_ra::RaClient>, path: &std::path::Path) {
+    if let Some(c) = ra.as_mut() {
+        match c.serialize_progress() {
+            Some(p) => {
+                let _ = std::fs::write(path, p);
+            }
+            None => {
+                let _ = std::fs::remove_file(path);
+            }
+        }
+    }
 }

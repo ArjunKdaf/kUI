@@ -367,31 +367,11 @@ fn headphone_active() -> bool {
     tg5040::switch_states().1.unwrap_or(false)
 }
 
-/// SPEC services: governor — sysfs writes to cpufreq policy0. Min freq is
-/// pinned to the lowest step always; auto = schedutil capped at the
-/// 2nd-highest step, performance = performance at the highest,
-/// powersave = conservative at the midpoint.
+/// SPEC services: governor — shared with the frontend via the HAL. The
+/// frontend re-asserts the per-game profile after session.sh forces
+/// performance around every launch; the launcher asserts the global one.
 fn apply_power_profile(profile: &str) {
-    let pol = Path::new("/sys/devices/system/cpu/cpufreq/policy0");
-    let mut freqs: Vec<u64> =
-        std::fs::read_to_string(pol.join("scaling_available_frequencies"))
-            .unwrap_or_default()
-            .split_whitespace()
-            .filter_map(|s| s.parse().ok())
-            .collect();
-    freqs.sort_unstable();
-    freqs.dedup();
-    let (Some(&lowest), Some(&highest)) = (freqs.first(), freqs.last()) else {
-        return;
-    };
-    let (governor, max) = match profile {
-        "performance" => ("performance", highest),
-        "powersave" => ("conservative", freqs[freqs.len() / 2]),
-        _ => ("schedutil", freqs[freqs.len().saturating_sub(2)]),
-    };
-    let _ = std::fs::write(pol.join("scaling_min_freq"), lowest.to_string());
-    let _ = std::fs::write(pol.join("scaling_governor"), governor);
-    let _ = std::fs::write(pol.join("scaling_max_freq"), max.to_string());
+    tg5040::apply_power_profile(profile);
 }
 
 /// Is a process running on the device (pidof)?
@@ -1779,6 +1759,8 @@ fn run() -> i32 {
                                 "power.profile",
                                 "save.format",
                                 "save.extracted",
+                                "save.compress",
+                                "state.compress",
                             ] {
                                 cfg.remove_prefix(k);
                             }
@@ -2158,9 +2140,9 @@ fn run() -> i32 {
                 }
             }
             Screen::CoreOpts { core, tags, defs, selected, scroll, list, list_pos } => {
-                // synthetic rows: Scaling, Effect, FF, Dpad Mode, then
-                // the 11 shortcuts
-                let n2 = defs.len() + 4 + LSC.len();
+                // synthetic rows: Scaling, Effect, FF, Dpad Mode, Power
+                // Profile, then the 11 shortcuts
+                let n2 = defs.len() + 5 + LSC.len();
                 if v_step != 0 {
                     *selected = wrap(*selected, v_step, n2);
                     let visible = 10usize;
@@ -2248,8 +2230,28 @@ fn run() -> i32 {
                     }
                     let _ = cfg.save();
                 }
-                if (confirm || pin_btn) && (4..4 + LSC.len()).contains(selected) {
-                    let row = *selected - 4;
+                if h_step != 0 && *selected == 4 {
+                    // CPU power profile default for every console this
+                    // core serves (thermal defense for hot GBA hacks)
+                    const PCHOICES: [&str; 4] = ["", "auto", "performance", "powersave"];
+                    let cur = tags
+                        .first()
+                        .map(|t| cfg.get_or(&format!("fe.{t}.power"), "").to_string())
+                        .unwrap_or_default();
+                    let idx = PCHOICES.iter().position(|c| *c == cur).unwrap_or(0);
+                    let ni = (idx as i32 + h_step).rem_euclid(PCHOICES.len() as i32) as usize;
+                    for t in tags.iter() {
+                        let key = format!("fe.{t}.power");
+                        if PCHOICES[ni].is_empty() {
+                            cfg.remove_prefix(&key);
+                        } else {
+                            cfg.set(&key, PCHOICES[ni]);
+                        }
+                    }
+                    let _ = cfg.save();
+                }
+                if (confirm || pin_btn) && (5..5 + LSC.len()).contains(selected) {
+                    let row = *selected - 5;
                     if pin_btn {
                         // X: back to the built-in default for every console
                         for t in tags.iter() {
@@ -2270,8 +2272,8 @@ fn run() -> i32 {
                     sc_cap = None;
                 }
                 if h_step != 0
-                    && *selected > 3 + LSC.len()
-                    && let Some(def) = defs.get(*selected - 4 - LSC.len())
+                    && *selected > 4 + LSC.len()
+                    && let Some(def) = defs.get(*selected - 5 - LSC.len())
                 {
                     let ckey = format!("core.{core}.{}", def.key);
                     let cur = cfg
@@ -3783,7 +3785,7 @@ fn run() -> i32 {
             }
             Screen::CoreOpts { core, tags, defs, selected, scroll, .. } => {
                 if let Some(f) = font.as_mut() {
-                    let total = defs.len() + 3;
+                    let total = defs.len() + 5 + LSC.len();
                     let visible = 10usize;
                     let top = 56.0;
                     for row in 0..visible.min(total) {
@@ -3836,9 +3838,21 @@ fn run() -> i32 {
                                 _ => "Default (Dpad)",
                             };
                             ("Dpad Mode".to_string(), disp.to_string())
-                        } else if (4..4 + LSC.len()).contains(&idx) {
-                            let (key, label, dflt) = LSC[idx - 4];
-                            let disp = if sc_cap == Some(idx - 4) && idx == *selected {
+                        } else if idx == 4 {
+                            let cur = tags
+                                .first()
+                                .map(|t| cfg.get_or(&format!("fe.{t}.power"), "").to_string())
+                                .unwrap_or_default();
+                            let disp = match cur.as_str() {
+                                "auto" => "Auto",
+                                "performance" => "Performance",
+                                "powersave" => "Powersave",
+                                _ => "Default",
+                            };
+                            ("Power Profile".to_string(), disp.to_string())
+                        } else if (5..5 + LSC.len()).contains(&idx) {
+                            let (key, label, dflt) = LSC[idx - 5];
+                            let disp = if sc_cap == Some(idx - 5) && idx == *selected {
                                 "Press a button...".to_string()
                             } else {
                                 let cur = tags
@@ -3856,7 +3870,7 @@ fn run() -> i32 {
                             };
                             (label.to_string(), disp)
                         } else {
-                            let def = &defs[idx - 4 - LSC.len()];
+                            let def = &defs[idx - 5 - LSC.len()];
                             let ckey = format!("core.{core}.{}", def.key);
                             (
                                 if def.desc.is_empty() {
