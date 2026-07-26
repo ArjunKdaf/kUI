@@ -9,7 +9,7 @@ release but is not kUI code.
 | `font2.ttf` — BPreplay Bold | SIL OFL 1.1 | Copyright (c) 2004 by Magenta / 2008 by George Triantafyllakos. |
 | rcheevos (RetroAchievements client) | MIT | vendored at `crates/ra/vendor/rcheevos/LICENSE` |
 | Artbook Next artwork | CC-BY-NC-SA | art by Anthony Caccese |
-| libretro cores | per core | each core keeps its own upstream license |
+| libretro cores | per core | full inventory with upstreams: `LICENSES/CORES.md` |
 | `cacert.pem` | MPL 2.0 | Mozilla CA certificate bundle |
 
 The SIL Open Font License permits bundling and redistribution of the
