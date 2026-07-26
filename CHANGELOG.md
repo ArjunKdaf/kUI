@@ -40,6 +40,14 @@
   approves kUI as a client, the server records hardcore unlocks as
   softcore — the behavior ships now so the approval clock and audit have
   something real to look at.
+- **Hold-to-scroll everywhere.** The in-game menus (Core Options, cheats,
+  shortcuts, and every other list) now auto-repeat while up/down is held,
+  with the same tuning as the launcher lists — one shared implementation
+  drives both.
+- **Game sessions get a log.** Emulator output now lands in
+  `logs/kui-frontend.txt` (kept across reboots, pruned at 512K, with
+  session start/exit markers). Previously it was discarded, which made
+  in-game crashes impossible to diagnose after the fact.
 - **Thermal telemetry.** kuid's minute-by-minute battery log
   (`.userdata/shared/kui/battlog.txt`) now also records CPU temperature,
   current CPU frequency, and the kernel's thermal-throttle step —
