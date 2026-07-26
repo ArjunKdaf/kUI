@@ -147,6 +147,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "kui-cheatdl"
+version = "0.9.0"
+
+[[package]]
 name = "kui-config"
 version = "0.9.0"
 
@@ -168,6 +172,7 @@ name = "kui-frontend"
 version = "0.9.0"
 dependencies = [
  "glow",
+ "kui-cheatdl",
  "kui-config",
  "kui-gfx",
  "kui-hal",
@@ -201,6 +206,7 @@ name = "kui-launcher"
 version = "0.9.0"
 dependencies = [
  "glow",
+ "kui-cheatdl",
  "kui-config",
  "kui-gfx",
  "kui-hal",
