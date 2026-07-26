@@ -1,8 +1,9 @@
-//! RetroArch-style cheat download: fetch the running game's .cht from
-//! the libretro-database repo — the same files RetroArch's online
-//! updater ships — picked by normalized-name match against the rom stem.
-//! Two GitHub API calls (cht/ listing -> per-system tree, which dodges
-//! the contents API's 1000-entry cap) plus the raw file itself.
+//! RetroArch-style cheat downloads from the libretro-database repo — the
+//! same .cht files RetroArch's online updater ships — matched by
+//! normalized name. Used per-game by the frontend (Cheats screen) and in
+//! bulk by the launcher (Control Panel cheat packs). Two GitHub API
+//! calls build a per-system [`Index`] (cht/ listing -> tree, dodging the
+//! contents API's 1000-entry cap); each file then comes from raw.
 
 use std::path::Path;
 
@@ -38,6 +39,11 @@ fn db_dir(tag: &str) -> Option<&'static str> {
         "MSX" => "Microsoft - MSX",
         _ => return None,
     })
+}
+
+/// Does the cheat database cover this platform tag?
+pub fn has_db(tag: &str) -> bool {
+    db_dir(tag).is_some()
 }
 
 /// Device curl, CA bundle from the card (same approach as kui-ra).
@@ -115,9 +121,14 @@ fn enc(s: &str) -> String {
     o
 }
 
-/// Fetch the best-matching cheat file for `stem` into `dest`.
-/// Returns (cheat count, matched database name).
-pub fn download(tag: &str, stem: &str, dest: &Path) -> Result<(usize, String), String> {
+/// One platform's cheat-file listing, fetched once and matched many times.
+pub struct Index {
+    dir: &'static str,
+    files: Vec<String>,
+}
+
+/// Fetch the cheat-file index for a platform tag (two API calls).
+pub fn index(tag: &str) -> Result<Index, String> {
     let dir = db_dir(tag).ok_or_else(|| format!("no cheat database for {tag}"))?;
 
     // cht/ listing pairs each system dir with its tree sha
@@ -135,60 +146,79 @@ pub fn download(tag: &str, stem: &str, dest: &Path) -> Result<(usize, String), S
         "https://api.github.com/repos/libretro/libretro-database/git/trees/{sha}"
     ))?;
     let files = json_strings(&String::from_utf8_lossy(&tree), "path");
+    Ok(Index { dir, files })
+}
 
-    // best match: exact normalized name, then prefix either way;
-    // prefer USA/World regions, then the shortest (least-suffixed) name
-    let want = norm(stem);
-    if want.is_empty() {
-        return Err("unusable rom name".into());
-    }
-    let region_rank = |name: &str| -> u32 {
-        let l = name.to_ascii_lowercase();
-        if l.contains("(usa") || l.contains("(world") {
-            0
-        } else if l.contains("(japan, usa") {
-            1
-        } else {
-            2
+impl Index {
+    /// Best-matching .cht for a rom stem: exact normalized name, then
+    /// prefix either way; prefer USA/World dumps, then the shortest
+    /// (least-suffixed) name. None when nothing plausible matches.
+    pub fn best_match(&self, stem: &str) -> Option<String> {
+        let want = norm(stem);
+        if want.is_empty() {
+            return None;
         }
-    };
-    let mut best: Option<(u32, u32, usize, &String)> = None;
-    for f in &files {
-        let Some(base) = f.strip_suffix(".cht") else { continue };
-        let n = norm(base);
-        let tier = if n == want {
-            0
-        } else if !n.is_empty() && (n.starts_with(&want) || want.starts_with(&n)) {
-            1
-        } else {
-            continue;
+        let region_rank = |name: &str| -> u32 {
+            let l = name.to_ascii_lowercase();
+            if l.contains("(usa") || l.contains("(world") {
+                0
+            } else if l.contains("(japan, usa") {
+                1
+            } else {
+                2
+            }
         };
-        let cand = (tier, region_rank(base), f.len(), f);
-        if best.as_ref().map(|b| cand < *b).unwrap_or(true) {
-            best = Some(cand);
+        let mut best: Option<(u32, u32, usize, &String)> = None;
+        for f in &self.files {
+            let Some(base) = f.strip_suffix(".cht") else { continue };
+            let n = norm(base);
+            let tier = if n == want {
+                0
+            } else if !n.is_empty() && (n.starts_with(&want) || want.starts_with(&n)) {
+                1
+            } else {
+                continue;
+            };
+            let cand = (tier, region_rank(base), f.len(), f);
+            if best.as_ref().map(|b| cand < *b).unwrap_or(true) {
+                best = Some(cand);
+            }
         }
+        best.map(|(.., f)| f.clone())
     }
-    let (.., file) = best.ok_or_else(|| format!("no cheats found for \"{stem}\""))?;
 
-    let body = fetch(&format!(
-        "https://raw.githubusercontent.com/libretro/libretro-database/master/cht/{}/{}",
-        enc(dir),
-        enc(file)
-    ))?;
-    let text = String::from_utf8_lossy(&body);
-    let count: usize = text
-        .lines()
-        .find_map(|l| {
-            let (k, v) = l.split_once('=')?;
-            (k.trim() == "cheats").then(|| v.trim().parse().ok())?
-        })
-        .unwrap_or(0);
-    if count == 0 {
-        return Err(format!("empty cheat file for \"{stem}\""));
+    /// Download one file from the index into `dest`; returns its cheat
+    /// count (errors on an empty file so callers can count it a miss).
+    pub fn fetch_into(&self, file: &str, dest: &Path) -> Result<usize, String> {
+        let body = fetch(&format!(
+            "https://raw.githubusercontent.com/libretro/libretro-database/master/cht/{}/{}",
+            enc(self.dir),
+            enc(file)
+        ))?;
+        let text = String::from_utf8_lossy(&body);
+        let count: usize = text
+            .lines()
+            .find_map(|l| {
+                let (k, v) = l.split_once('=')?;
+                (k.trim() == "cheats").then(|| v.trim().parse().ok())?
+            })
+            .unwrap_or(0);
+        if count == 0 {
+            return Err("empty cheat file".into());
+        }
+        if let Some(p) = dest.parent() {
+            let _ = std::fs::create_dir_all(p);
+        }
+        std::fs::write(dest, body.as_slice()).map_err(|e| format!("write: {e}"))?;
+        Ok(count)
     }
-    if let Some(p) = dest.parent() {
-        let _ = std::fs::create_dir_all(p);
-    }
-    std::fs::write(dest, body.as_slice()).map_err(|e| format!("write: {e}"))?;
+}
+
+/// One-shot per-game fetch (the frontend's Cheats screen).
+/// Returns (cheat count, matched database name).
+pub fn download(tag: &str, stem: &str, dest: &Path) -> Result<(usize, String), String> {
+    let ix = index(tag)?;
+    let file = ix.best_match(stem).ok_or_else(|| format!("no cheats found for \"{stem}\""))?;
+    let count = ix.fetch_into(&file, dest)?;
     Ok((count, file.trim_end_matches(".cht").to_string()))
 }

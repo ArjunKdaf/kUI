@@ -40,11 +40,15 @@
   softcore — the behavior ships now so the approval clock and audit have
   something real to look at.
 - **Cheat downloads, RetroArch-style.** The in-game Cheats menu is now
-  always available (except in RA hardcore) and its first entry downloads
-  the running game's cheat file from the libretro cheat database — the
-  same files RetroArch's online updater ships — matched by name with a
-  preference for USA/World dumps. Needs WiFi; the file lands in
-  `Cheats/<TAG>/<rom>.cht` so it loads automatically from then on.
+  always available (except in RA hardcore); when a game has no cheat
+  file yet, a "Download cheats" entry fetches it from the libretro cheat
+  database — the same files RetroArch's online updater ships — matched
+  by name with a preference for USA/World dumps. Needs WiFi; the file
+  lands in `Cheats/<TAG>/<rom>.cht` so it loads automatically from then
+  on. Control Panel gains **Download Cheats** next to RA PreFetch: pick
+  All Platforms or a single one and it fetches cheat files for every
+  game you have (skipping ones already on card), with live progress and
+  A-to-cancel. RA PreFetch gained the same all-or-one platform picker.
 - **Hold-to-scroll everywhere.** The in-game menus (Core Options, cheats,
   shortcuts, and every other list) now auto-repeat while up/down is held,
   with the same tuning as the launcher lists — one shared implementation

@@ -251,6 +251,20 @@ enum Screen {
     },
     /// (label, platform dir; None = all platforms)
     ScraperPlatforms { rows: Vec<(String, Option<PathBuf>)>, selected: usize, scroll: usize },
+    /// (label, Some(tag) = one platform, None = all); ret = hub (page, item)
+    CheatPlatforms {
+        rows: Vec<(String, Option<String>)>,
+        selected: usize,
+        scroll: usize,
+        ret: (usize, usize),
+    },
+    /// same picker for RA PreFetch
+    PrefetchPlatforms {
+        rows: Vec<(String, Option<String>)>,
+        selected: usize,
+        scroll: usize,
+        ret: (usize, usize),
+    },
     ScraperMenu { label: String, dir: Option<PathBuf>, selected: usize },
     PakCats { cats: Vec<(String, usize, usize)>, selected: usize, scroll: usize },
     PakDek {
@@ -861,6 +875,10 @@ fn run() -> i32 {
     let ra_pf: std::sync::Arc<std::sync::Mutex<(usize, usize, String, bool)>> =
         std::sync::Arc::new(std::sync::Mutex::new((0, 0, String::new(), true)));
     let ra_pf_cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    // cheat-pack worker, same shape
+    let cheat_pf: std::sync::Arc<std::sync::Mutex<(usize, usize, String, bool)>> =
+        std::sync::Arc::new(std::sync::Mutex::new((0, 0, String::new(), true)));
+    let cheat_pf_cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     // shared status line for store/updater workers ("" = idle)
     let store_msg: std::sync::Arc<std::sync::Mutex<String>> =
         std::sync::Arc::new(std::sync::Mutex::new(String::new()));
@@ -1783,63 +1801,43 @@ fn run() -> i32 {
                                         *g = (0, 0, "Authenticate first".into(), true);
                                     }
                                 } else {
-                                    let roms: Vec<PathBuf> = platforms
-                                        .iter()
-                                        .flat_map(|p| {
-                                            p.roms
-                                                .iter()
-                                                .map(|r2| p.dir.join(r2))
-                                                .collect::<Vec<_>>()
-                                        })
-                                        .collect();
-                                    let pf = ra_pf.clone();
-                                    let cancel = ra_pf_cancel.clone();
-                                    cancel
-                                        .store(false, std::sync::atomic::Ordering::Relaxed);
-                                    if let Ok(mut g) = pf.lock() {
-                                        *g = (0, roms.len(), "Starting...".into(), false);
+                                    let mut rows: Vec<(String, Option<String>)> =
+                                        vec![("All Platforms".into(), None)];
+                                    for p in &platforms {
+                                        rows.push((p.display.clone(), Some(p.tag.clone())));
                                     }
-                                    std::thread::spawn(move || {
-                                        let mut cached = 0usize;
-                                        let total = roms.len();
-                                        for (i, rom) in roms.iter().enumerate() {
-                                            if cancel
-                                                .load(std::sync::atomic::Ordering::Relaxed)
-                                            {
-                                                if let Ok(mut g) = pf.lock() {
-                                                    *g = (
-                                                        i,
-                                                        total,
-                                                        format!("Cancelled ({cached} cached)"),
-                                                        true,
-                                                    );
-                                                }
-                                                return;
-                                            }
-                                            if kui_ra::prefetch_game(&user, &token, rom)
-                                                .is_ok()
-                                            {
-                                                cached += 1;
-                                            }
-                                            if let Ok(mut g) = pf.lock() {
-                                                *g = (
-                                                    i + 1,
-                                                    total,
-                                                    format!("{cached} cached"),
-                                                    false,
-                                                );
-                                            }
-                                        }
-                                        if let Ok(mut g) = pf.lock() {
-                                            *g = (
-                                                total,
-                                                total,
-                                                format!("Done — {cached} games cached"),
-                                                true,
-                                            );
-                                        }
+                                    next_screen = Some(Screen::PrefetchPlatforms {
+                                        rows,
+                                        selected: 0,
+                                        scroll: 0,
+                                        ret: (*page, *selected),
                                     });
+                                    v_rep.clear();
                                 }
+                            }
+                        }
+                        "cheats.download" => {
+                            let running =
+                                cheat_pf.lock().map(|g| !g.3).unwrap_or(false);
+                            if running {
+                                cheat_pf_cancel
+                                    .store(true, std::sync::atomic::Ordering::Relaxed);
+                            } else {
+                                // only platforms the cheat database covers
+                                let mut rows: Vec<(String, Option<String>)> =
+                                    vec![("All Platforms".into(), None)];
+                                for p in &platforms {
+                                    if kui_cheatdl::has_db(&p.tag) {
+                                        rows.push((p.display.clone(), Some(p.tag.clone())));
+                                    }
+                                }
+                                next_screen = Some(Screen::CheatPlatforms {
+                                    rows,
+                                    selected: 0,
+                                    scroll: 0,
+                                    ret: (*page, *selected),
+                                });
+                                v_rep.clear();
                             }
                         }
                         "ra.auth" => {
@@ -2602,6 +2600,165 @@ fn run() -> i32 {
                     next_screen = Some(Screen::HubIndex {
                         selected: hub_pos(&hub_pages, "Scraper"),
                     });
+                    v_rep.clear();
+                }
+            }
+            Screen::PrefetchPlatforms { rows, selected, scroll, ret } => {
+                if v_step != 0 && !rows.is_empty() {
+                    *selected = wrap(*selected, v_step, rows.len());
+                    let visible = 10usize;
+                    if *selected < *scroll {
+                        *scroll = *selected;
+                    }
+                    if *selected >= *scroll + visible {
+                        *scroll = *selected + 1 - visible;
+                    }
+                }
+                if confirm && let Some((_, tag_sel)) = rows.get(*selected) {
+                    let user = cfg.get_or("ra.user", "").to_string();
+                    let token = cfg.get_or("ra.token", "").to_string();
+                    let roms: Vec<PathBuf> = platforms
+                        .iter()
+                        .filter(|p| {
+                            tag_sel.as_deref().map(|t| t == p.tag).unwrap_or(true)
+                        })
+                        .flat_map(|p| {
+                            p.roms.iter().map(|r2| p.dir.join(r2)).collect::<Vec<_>>()
+                        })
+                        .collect();
+                    let pf = ra_pf.clone();
+                    let cancel = ra_pf_cancel.clone();
+                    cancel.store(false, std::sync::atomic::Ordering::Relaxed);
+                    if let Ok(mut g) = pf.lock() {
+                        *g = (0, roms.len(), "Starting...".into(), false);
+                    }
+                    std::thread::spawn(move || {
+                        let mut cached = 0usize;
+                        let total = roms.len();
+                        for (i, rom) in roms.iter().enumerate() {
+                            if cancel.load(std::sync::atomic::Ordering::Relaxed) {
+                                if let Ok(mut g) = pf.lock() {
+                                    *g = (
+                                        i,
+                                        total,
+                                        format!("Cancelled ({cached} cached)"),
+                                        true,
+                                    );
+                                }
+                                return;
+                            }
+                            if kui_ra::prefetch_game(&user, &token, rom).is_ok() {
+                                cached += 1;
+                            }
+                            if let Ok(mut g) = pf.lock() {
+                                *g = (i + 1, total, format!("{cached} cached"), false);
+                            }
+                        }
+                        if let Ok(mut g) = pf.lock() {
+                            *g = (
+                                total,
+                                total,
+                                format!("Done — {cached} games cached"),
+                                true,
+                            );
+                        }
+                    });
+                    next_screen =
+                        Some(Screen::HubPage { page: ret.0, selected: ret.1 });
+                    v_rep.clear();
+                }
+                if back {
+                    next_screen =
+                        Some(Screen::HubPage { page: ret.0, selected: ret.1 });
+                    v_rep.clear();
+                }
+            }
+            Screen::CheatPlatforms { rows, selected, scroll, ret } => {
+                if v_step != 0 && !rows.is_empty() {
+                    *selected = wrap(*selected, v_step, rows.len());
+                    let visible = 10usize;
+                    if *selected < *scroll {
+                        *scroll = *selected;
+                    }
+                    if *selected >= *scroll + visible {
+                        *scroll = *selected + 1 - visible;
+                    }
+                }
+                if confirm && let Some((_, tag_sel)) = rows.get(*selected) {
+                    // (tag, Cheats/<TAG>, rom stems) per covered platform;
+                    // existing .cht files are never re-fetched
+                    let cheats_root = sd.root.join("Cheats");
+                    let groups: Vec<(String, PathBuf, Vec<String>)> = platforms
+                        .iter()
+                        .filter(|p| kui_cheatdl::has_db(&p.tag))
+                        .filter(|p| {
+                            tag_sel.as_deref().map(|t| t == p.tag).unwrap_or(true)
+                        })
+                        .map(|p| {
+                            (
+                                p.tag.clone(),
+                                cheats_root.join(&p.tag),
+                                p.roms
+                                    .iter()
+                                    .map(|r2| {
+                                        Path::new(r2)
+                                            .file_stem()
+                                            .map(|s| s.to_string_lossy().into_owned())
+                                            .unwrap_or_else(|| r2.clone())
+                                    })
+                                    .collect(),
+                            )
+                        })
+                        .collect();
+                    let total: usize = groups.iter().map(|(.., s)| s.len()).sum();
+                    let pf = cheat_pf.clone();
+                    let cancel = cheat_pf_cancel.clone();
+                    cancel.store(false, std::sync::atomic::Ordering::Relaxed);
+                    if let Ok(mut g) = pf.lock() {
+                        *g = (0, total, "Starting...".into(), false);
+                    }
+                    std::thread::spawn(move || {
+                        let (mut got, mut done) = (0usize, 0usize);
+                        for (tag2, dir2, stems) in groups {
+                            let ix = kui_cheatdl::index(&tag2).ok();
+                            for stem in stems {
+                                if cancel.load(std::sync::atomic::Ordering::Relaxed) {
+                                    if let Ok(mut g) = pf.lock() {
+                                        *g = (
+                                            done,
+                                            total,
+                                            format!("Cancelled ({got} fetched)"),
+                                            true,
+                                        );
+                                    }
+                                    return;
+                                }
+                                done += 1;
+                                let dest = dir2.join(format!("{stem}.cht"));
+                                if !dest.exists()
+                                    && let Some(ix2) = &ix
+                                    && let Some(f2) = ix2.best_match(&stem)
+                                    && ix2.fetch_into(&f2, &dest).is_ok()
+                                {
+                                    got += 1;
+                                }
+                                if let Ok(mut g) = pf.lock() {
+                                    *g = (done, total, format!("{got} fetched"), false);
+                                }
+                            }
+                        }
+                        if let Ok(mut g) = pf.lock() {
+                            *g =
+                                (total, total, format!("Done — {got} cheat files"), true);
+                        }
+                    });
+                    next_screen =
+                        Some(Screen::HubPage { page: ret.0, selected: ret.1 });
+                    v_rep.clear();
+                }
+                if back {
+                    next_screen =
+                        Some(Screen::HubPage { page: ret.0, selected: ret.1 });
                     v_rep.clear();
                 }
             }
@@ -4040,6 +4197,41 @@ fn run() -> i32 {
                     }
                 }
             }
+            Screen::CheatPlatforms { rows, selected, scroll, .. }
+            | Screen::PrefetchPlatforms { rows, selected, scroll, .. } => {
+                if let Some(f) = font.as_mut() {
+                    let head = if matches!(screen, Screen::CheatPlatforms { .. }) {
+                        "Download cheat files for..."
+                    } else {
+                        "Cache achievement data for..."
+                    };
+                    f.draw(&r, &v.gl, head, 32.0, 20.0, 22, theme.c6);
+                    let top = 56.0;
+                    let visible = 10usize;
+                    for row in 0..visible.min(rows.len()) {
+                        let idx = scroll + row;
+                        if idx >= rows.len() {
+                            break;
+                        }
+                        let (label, _) = &rows[idx];
+                        let y = top + row as f32 * ROW_H;
+                        let lh = f.line_height(LIST_FONT);
+                        let pill_y = y + (ROW_H - PILL_H as f32) / 2.0;
+                        let text_y = pill_y + (PILL_H as f32 - lh) / 2.0;
+                        if idx == *selected {
+                            let sel_c = theme.c1;
+                            draw_roll(
+                                f, &r, &v.gl, &mut roll_state, "platpick", label, 56.0,
+                                text_y, pill_y, PILL_H as f32, LIST_FONT, sel_c,
+                                sw as f32 - 128.0, now,
+                            );
+                        } else {
+                            let shown = f.fit(&v.gl, label, LIST_FONT, sw as f32 - 128.0);
+                            f.draw(&r, &v.gl, &shown, 56.0, text_y, LIST_FONT, theme.c4);
+                        }
+                    }
+                }
+            }
             Screen::ScraperMenu { label, selected, .. } => {
                 if let Some(f) = font.as_mut() {
                     f.draw(&r, &v.gl, label, 32.0, 20.0, 22, theme.c6);
@@ -4717,6 +4909,13 @@ fn run() -> i32 {
                             }
                         } else if item.key == "ra.prefetch" {
                             match ra_pf.lock() {
+                                Ok(g) if g.3 && g.2.is_empty() => String::new(),
+                                Ok(g) if g.3 => g.2.clone(),
+                                Ok(g) => format!("{}/{} — {}", g.0, g.1, g.2),
+                                Err(_) => String::new(),
+                            }
+                        } else if item.key == "cheats.download" {
+                            match cheat_pf.lock() {
                                 Ok(g) if g.3 && g.2.is_empty() => String::new(),
                                 Ok(g) if g.3 => g.2.clone(),
                                 Ok(g) => format!("{}/{} — {}", g.0, g.1, g.2),
@@ -5592,6 +5791,9 @@ fn run() -> i32 {
                 }
                 Screen::Battery { .. } => &[("</>", "Zoom"), ("B", "Back")],
                 Screen::ScraperPlatforms { .. } => &[("A", "Open"), ("B", "Back")],
+                Screen::CheatPlatforms { .. } | Screen::PrefetchPlatforms { .. } => {
+                    &[("A", "Download"), ("B", "Back")]
+                }
                 Screen::PakCats { .. } => &[("A", "Open"), ("B", "Back")],
                 Screen::PakDek { paks, selected, .. } => {
                     match paks.get(*selected).map(|p| {

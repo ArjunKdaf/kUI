@@ -16,8 +16,9 @@ use kui_hal::tg5040;
 use kui_hal::{Button, ButtonState, InputEvent, Repeat};
 use kui_libretro as lr;
 
-mod cheatdl;
 mod hardcore;
+
+use kui_cheatdl as cheatdl;
 
 const OUT_RATE: i32 = 48000;
 const SLOTS: usize = 8;
@@ -1794,8 +1795,10 @@ fn run() -> i32 {
             }
         }
         if let FeScreen::Cheats { sel, scroll } = &mut screen {
-            // row 0 = "Download cheats", cheat entries follow
-            let n = cheats.len() + 1;
+            // no cheat file yet: a lone "Download cheats" row; once one
+            // exists the list is just the cheats
+            let dl_row = usize::from(cheats.is_empty());
+            let n = cheats.len() + dl_row;
             if up {
                 *sel = (*sel + n - 1) % n;
             }
@@ -1809,8 +1812,8 @@ fn run() -> i32 {
             if *sel >= *scroll + visible {
                 *scroll = *sel + 1 - visible;
             }
-            if (left || right || confirm) && *sel > 0 {
-                let ci = *sel - 1;
+            if (left || right || confirm) && *sel >= dl_row && !cheats.is_empty() {
+                let ci = *sel - dl_row;
                 cheats[ci].2 = !cheats[ci].2;
                 let shared = Path::new(&sd_root).join(".userdata/shared");
                 let mut wcfg = kui_config::Config::load(&shared);
@@ -1822,7 +1825,7 @@ fn run() -> i32 {
                 let applied: Vec<(bool, String)> =
                     cheats.iter().map(|(_, c, on)| (*on, c.clone())).collect();
                 core.apply_cheats(&applied);
-            } else if confirm && *sel == 0 && cheat_dl.is_none() {
+            } else if confirm && dl_row == 1 && *sel == 0 && cheat_dl.is_none() {
                 let wifi_up = std::process::Command::new("sh")
                     .args(["-c", "pidof wpa_supplicant >/dev/null 2>&1"])
                     .status()
@@ -2267,14 +2270,15 @@ fn run() -> i32 {
             && let Some(f) = font.as_mut()
         {
             let top = 40.0;
-            let total = cheats.len() + 1;
+            let dl_row = usize::from(cheats.is_empty());
+            let total = cheats.len() + dl_row;
             for i in *scroll..(*scroll + 8).min(total) {
                 let row = i - *scroll;
                 let y = top + row as f32 * ROW_H;
                 let lh = f.line_height(26);
                 let pill_y = y + (ROW_H - PILL_H as f32) / 2.0;
                 let text_y = pill_y + (PILL_H as f32 - lh) / 2.0;
-                let (desc, val) = if i == 0 {
+                let (desc, val) = if dl_row == 1 && i == 0 {
                     let label = if cheat_dl.is_some() {
                         "Downloading..."
                     } else {
@@ -2282,7 +2286,7 @@ fn run() -> i32 {
                     };
                     (label.to_string(), String::new())
                 } else {
-                    let (d, _, on) = &cheats[i - 1];
+                    let (d, _, on) = &cheats[i - dl_row];
                     (d.clone(), (if *on { "On" } else { "Off" }).to_string())
                 };
                 let vw = f.measure(gl, &val, 26);

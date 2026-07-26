@@ -13,3 +13,4 @@ kui-libretro.workspace = true
 kui-gfx.workspace = true
 miniz_oxide = "0.8"
 kui-ra.workspace = true
+kui-cheatdl.workspace = true

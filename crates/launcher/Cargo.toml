@@ -10,6 +10,7 @@ kui-gfx.workspace = true
 kui-config.workspace = true
 kui-libretro.workspace = true
 kui-ra.workspace = true
+kui-cheatdl.workspace = true
 kui-store.workspace = true
 sdl2.workspace = true
 glow.workspace = true

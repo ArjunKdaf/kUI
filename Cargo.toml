@@ -10,6 +10,7 @@ members = [
     "crates/store",
     "crates/launcher",
     "crates/frontend",
+    "crates/cheatdl",
     "crates/daemon",
     "crates/shim",
     "crates/power",
@@ -30,6 +31,7 @@ kui-db = { path = "crates/db" }
 kui-libretro = { path = "crates/libretro" }
 kui-ra = { path = "crates/ra" }
 kui-store = { path = "crates/store" }
+kui-cheatdl = { path = "crates/cheatdl" }
 sdl2 = "0.38"
 miniz_oxide = "0.8"
 glow = "0.16"

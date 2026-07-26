@@ -389,7 +389,13 @@ pub fn pages(device_name: &str, stock_ver: &str, busybox_ver: &str) -> Vec<Page>
                 Item {
                     label: "RA PreFetch",
                     key: "ra.prefetch",
-                    desc: "Press A to cache every game's achievement data for offline play. A again cancels.",
+                    desc: "Press A to cache achievement data for offline play — all platforms or one. A again cancels.",
+                    kind: ItemKind::Action,
+                },
+                Item {
+                    label: "Download Cheats",
+                    key: "cheats.download",
+                    desc: "Press A to fetch cheat files for your games — all platforms or one. A again cancels.",
                     kind: ItemKind::Action,
                 },
                 // RA Hardcore stays UI-hidden until RetroAchievements
