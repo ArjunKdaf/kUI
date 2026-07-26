@@ -5,3 +5,6 @@
 [target.aarch64-unknown-linux-gnu]
 # path is relative to the workspace root (where cargo runs)
 linker = "toolchain/bin/aarch64-kui-linux-gnu-gcc"
+# our binutils 2.31.1 doesn't know Rust std's AArch64 BTI note
+# (GNU_PROPERTY_TYPE 5) — device-verified benign, so keep builds quiet
+rustflags = ["-A", "linker_messages"]
