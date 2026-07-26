@@ -16,6 +16,8 @@ use kui_hal::tg5040;
 use kui_hal::{Button, ButtonState, InputEvent};
 use kui_libretro as lr;
 
+mod hardcore;
+
 const OUT_RATE: i32 = 48000;
 const SLOTS: usize = 8;
 const PILL_H: u32 = 52;
@@ -283,6 +285,12 @@ fn run() -> i32 {
         .file_stem()
         .map(|s| s.to_string_lossy().replace("_libretro", ""))
         .unwrap_or_default();
+    // RA hardcore (docs.retroachievements.org hardcore compliance): the
+    // toggle governs the whole session — cheats never touch memory, save
+    // states may be written but never loaded, and core options RA bans
+    // (rc_libretro tables) are dropped before they reach the core.
+    let ra_hardcore =
+        cfg.get_or("ra.enabled", "off") == "on" && cfg.get_or("ra.hardcore", "off") == "on";
     // options: kUI defaults, then core-level, then per-game overrides —
     // handed to Core::load so restart-gated options (read during
     // retro_load_game) see the right values
@@ -298,6 +306,15 @@ fn run() -> i32 {
     opts.extend(cfg.keys_with_prefix(&game_prefix).into_iter().filter_map(|k| {
         cfg.get(&k).map(|v| (k[game_prefix.len()..].to_string(), v.to_string()))
     }));
+    if ra_hardcore {
+        opts.retain(|(k, v)| {
+            let keep = !hardcore::disallowed(k, v);
+            if !keep {
+                println!("hardcore: dropped core option {k}={v}");
+            }
+            keep
+        });
+    }
     let mut core = match lr::Core::load(&core_path, &load_path, &system_dir, &save_dir, opts) {
         Ok(c) => c,
         Err(e) => {
@@ -317,11 +334,6 @@ fn run() -> i32 {
         .file_name()
         .map(|s| s.to_string_lossy().into_owned())
         .unwrap_or_default();
-    // RA hardcore (docs.retroachievements.org hardcore compliance): the
-    // toggle governs the whole session — cheats never touch memory, save
-    // states may be written but never loaded. Read before cheat apply.
-    let ra_hardcore =
-        cfg.get_or("ra.enabled", "off") == "on" && cfg.get_or("ra.hardcore", "off") == "on";
     // cheats: standard .cht at Cheats/<TAG>/<stem>.cht, enables persisted
     let cheat_path = Path::new(&sd_root).join("Cheats").join(&tag).join(format!("{stem}.cht"));
     // (desc, code, enabled)
@@ -1685,6 +1697,9 @@ fn run() -> i32 {
                         })
                         .collect();
                     for (k, vv) in &console {
+                        if ra_hardcore && hardcore::disallowed(k, vv) {
+                            continue;
+                        }
                         core.set_var(k, vv);
                     }
                     scaling = match wcfg.get_or(&tag_scaling_key, "") {
@@ -1715,14 +1730,18 @@ fn run() -> i32 {
                         (idx + 1) % def.choices.len()
                     };
                     if let Some(nv) = def.choices.get(ni) {
-                        core.set_var(&def.key, nv);
-                        let _ = &nv;
-                        // persist per core
-                        let ckey = format!("{game_prefix}{}", def.key);
-                        let shared = Path::new(&sd_root).join(".userdata/shared");
-                        let mut wcfg = kui_config::Config::load(&shared);
-                        wcfg.set(&ckey, nv);
-                        let _ = wcfg.save();
+                        if ra_hardcore && hardcore::disallowed(&def.key, nv) {
+                            toast = Some(("Blocked in hardcore".into(), Instant::now()));
+                        } else {
+                            core.set_var(&def.key, nv);
+                            let _ = &nv;
+                            // persist per core
+                            let ckey = format!("{game_prefix}{}", def.key);
+                            let shared = Path::new(&sd_root).join(".userdata/shared");
+                            let mut wcfg = kui_config::Config::load(&shared);
+                            wcfg.set(&ckey, nv);
+                            let _ = wcfg.save();
+                        }
                     }
                 }
             }

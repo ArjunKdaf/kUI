@@ -32,7 +32,11 @@
   own stable user agent (`kUI/<version> (TrimUI; Linux) rc_client/…`).
   In hardcore, save-and-quit (menu+Start) simply quits: the in-game save
   is the only continuation point, so no resume state or slot is written
-  (the battery save always flushes on exit). Until RetroAchievements
+  (the battery save always flushes on exit). Core options RA forbids in
+  hardcore (rcheevos' rc_libretro tables: layer hiding, PAL forcing,
+  underclocking, built-in cheats, UNIBIOS, …) are dropped at launch and
+  blocked in the in-game editor ("Blocked in hardcore") — the same rules
+  RetroArch enforces, ported table-for-table with tests. Until RetroAchievements
   approves kUI as a client, the server records hardcore unlocks as
   softcore — the behavior ships now so the approval clock and audit have
   something real to look at.
