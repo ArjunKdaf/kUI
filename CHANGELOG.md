@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.27k (unreleased)
+## 0.27k (2026-07-31)
 
 ### New
 
