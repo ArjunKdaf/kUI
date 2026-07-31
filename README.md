@@ -181,6 +181,8 @@ Builds are deterministic.
 ## Credits
 
 - **kUI** by [ArjunKdaf](https://github.com/ArjunKdaf)
+- **Heritage** — kUI began as a fork ([kUI-Cold](https://github.com/ArjunKdaf/kUI-Cold));
+  the k-series is a full rewrite.
 - **Artbook Next** artwork by [Anthony Caccese](https://github.com/anthonycaccese/art-book-next-es)
 - **Overlay bezels** by [Shin (KrutzOtrem)](https://github.com/KrutzOtrem/Trimui-Brick-Overlays) (MIT)
 - **rcheevos** (RetroAchievements) — MIT, vendored
@@ -194,6 +196,6 @@ who keep retro gaming alive. Thank you. ❤️
 
 ## License
 
-GPL-3.0 — see [LICENSE](LICENSE). The Dude, the scraper, and the design
-are original works by ArjunKdaf; rcheevos is vendored under its MIT
-license.
+GPL-3.0 — see [LICENSE](LICENSE). kUI code is a work by ArjunKdaf;
+The Dude is an original kUI concept. rcheevos is vendored under its
+MIT license.
