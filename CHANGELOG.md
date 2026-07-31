@@ -162,3 +162,9 @@
   (submitted upstream as picodrive #266). The one core rides along in the
   update payload — updates normally don't touch cores — so 0.09k cards
   get the fix without a reinstall.
+- **Junk Roms folders are cleaned up.** A one-shot migration removes empty
+  `Roms/` folders whose names carry stray color-code text (a card-curation
+  script accident; e.g. a second "3DO (3DO)" folder wrapped in bracket
+  gibberish). Only exact matches are touched and only if empty — a folder
+  with anything in it is never deleted. Most cards have none of these and
+  the migration does nothing.
