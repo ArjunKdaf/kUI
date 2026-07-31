@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **Pak Dek lists scroll with the cursor again.** Pak rows are taller
+  than standard list rows, so only 7 fit on screen — but the scroll
+  logic assumed 11. The highlight could walk below the visible area,
+  and in categories with 8-10 paks (Media) the view never scrolled at
+  all, leaving the last rows unreachable. Input and renderer now share
+  one row count. Reported by pawndev.
+
 ## 0.27k (2026-07-31)
 
 ### New

@@ -2441,7 +2441,7 @@ fn run() -> i32 {
             Screen::PakDek { paks, selected, scroll, cat_sel, .. } => {
                 if v_step != 0 && !paks.is_empty() {
                     *selected = wrap(*selected, v_step, paks.len());
-                    let visible = visible_rows();
+                    let visible = pakdek_visible_rows();
                     if *selected < *scroll {
                         *scroll = *selected;
                     }
@@ -4084,7 +4084,7 @@ fn run() -> i32 {
                     f.draw(&r, &v.gl, &head, 32.0, 20.0, 22, theme.c6);
                     let top = 56.0;
                     let row_h2 = 82.0;
-                    let visible = 7usize;
+                    let visible = pakdek_visible_rows();
                     for row in 0..visible.min(paks.len()) {
                         let idx = scroll + row;
                         if idx >= paks.len() {
@@ -6422,6 +6422,12 @@ fn now_hint() -> Instant {
 
 fn visible_rows() -> usize {
     11
+}
+
+// Pak Dek rows are 82 px (name + description) vs the standard 64, so
+// fewer fit; input clamp and renderer must agree on this count.
+fn pakdek_visible_rows() -> usize {
+    7
 }
 
 fn stem_of(p: &std::path::Path) -> String {
