@@ -40,11 +40,26 @@ mkdir -p "$DIST/.system/res" "$DIST/Shaders"
 cp shaders/*.glsl "$DIST/Shaders/"
 cp assets/cacert.pem "$DIST/.system/res/cacert.pem"
 cp assets/iconsheet/assets@2x.png "$DIST/.system/res/assets@2x.png"
+# default collection background art: new in 0.27k, so updaters coming
+# from 0.09k need it delivered in the payload (cards built fresh get it
+# here too - the card image is assembled on top of this payload)
+cp -r assets/collections "$DIST/.system/res/collections"
+# one-off core refresh: PicoDrive rebuilt from upstream master + the SMS
+# FM serialize_size fix (picodrive PR #266) - fixes SMS save states
+# resetting the game (found via Asterix). Pulled off the curated card
+# (md5-matched to the device-verified build), not built by this script.
+if [ ! -f vendor/cores/picodrive_libretro.so ]; then
+	echo "missing vendor/cores/picodrive_libretro.so (pull it off the card)" >&2
+	exit 1
+fi
+mkdir -p "$DIST/.system/tg5040/cores"
+cp vendor/cores/picodrive_libretro.so "$DIST/.system/tg5040/cores/"
 cp scripts/INSTALL.txt "$DIST/README.txt"
 
 # OS update payload: one flat zip in SD-root layout. It is kUI itself
-# (binaries + boot chain + migrations + libs) -- NOT cores or art. Serves
-# every UPDATE/overlay path:
+# (binaries + boot chain + migrations + libs) -- NOT cores or art, save
+# for the one-off PicoDrive refresh and the default collection art
+# above. Serves every UPDATE/overlay path:
 #   - the in-OS Updater  (unzip auto-detects no top-level dir to strip)
 #   - the 0.81a bridge   (its C updater does `cd /mnt/SDCARD && unzip -o`)
 #   - a manual overlay onto a card that already has cores + art

@@ -153,3 +153,12 @@
   only deletes what it can attribute unambiguously. Every deletion is
   logged to `.userdata/shared/pakdek/removals.log`. (Paks installed before
   this update carry no snapshot, so their existing strays are left as-is.)
+- **Master System save states no longer corrupt the game.** (Found via
+  Asterix and the Great Rescue, 2026-07-26: loading any state — including
+  auto-resume — could garble the cartridge mapper and reset the game.)
+  The shipped PicoDrive core was a 2024 build missing upstream's 2025 SMS
+  state-loading fixes; this update bundles a fresh PicoDrive built from
+  upstream master, plus kUI's own hardening for FM-sound state sizing
+  (submitted upstream as picodrive #266). The one core rides along in the
+  update payload — updates normally don't touch cores — so 0.09k cards
+  get the fix without a reinstall.

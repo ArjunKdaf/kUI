@@ -148,15 +148,15 @@ dependencies = [
 
 [[package]]
 name = "kui-cheatdl"
-version = "0.9.0"
+version = "0.27.0"
 
 [[package]]
 name = "kui-config"
-version = "0.9.0"
+version = "0.27.0"
 
 [[package]]
 name = "kui-daemon"
-version = "0.9.0"
+version = "0.27.0"
 dependencies = [
  "kui-config",
  "kui-hal",
@@ -165,11 +165,11 @@ dependencies = [
 
 [[package]]
 name = "kui-db"
-version = "0.9.0"
+version = "0.27.0"
 
 [[package]]
 name = "kui-frontend"
-version = "0.9.0"
+version = "0.27.0"
 dependencies = [
  "glow",
  "kui-cheatdl",
@@ -184,7 +184,7 @@ dependencies = [
 
 [[package]]
 name = "kui-gfx"
-version = "0.9.0"
+version = "0.27.0"
 dependencies = [
  "fontdue",
  "glow",
@@ -193,7 +193,7 @@ dependencies = [
 
 [[package]]
 name = "kui-hal"
-version = "0.9.0"
+version = "0.27.0"
 dependencies = [
  "glow",
  "kui-config",
@@ -203,7 +203,7 @@ dependencies = [
 
 [[package]]
 name = "kui-launcher"
-version = "0.9.0"
+version = "0.27.0"
 dependencies = [
  "glow",
  "kui-cheatdl",
@@ -218,7 +218,7 @@ dependencies = [
 
 [[package]]
 name = "kui-libretro"
-version = "0.9.0"
+version = "0.27.0"
 dependencies = [
  "libc",
  "libloading",
@@ -226,7 +226,7 @@ dependencies = [
 
 [[package]]
 name = "kui-msettings"
-version = "0.9.0"
+version = "0.27.0"
 dependencies = [
  "kui-config",
  "kui-hal",
@@ -234,7 +234,7 @@ dependencies = [
 
 [[package]]
 name = "kui-power"
-version = "0.9.0"
+version = "0.27.0"
 dependencies = [
  "kui-config",
  "kui-hal",
@@ -243,11 +243,11 @@ dependencies = [
 
 [[package]]
 name = "kui-ra"
-version = "0.9.0"
+version = "0.27.0"
 
 [[package]]
 name = "kui-shim"
-version = "0.9.0"
+version = "0.27.0"
 dependencies = [
  "kui-config",
  "kui-hal",
@@ -255,7 +255,7 @@ dependencies = [
 
 [[package]]
 name = "kui-store"
-version = "0.9.0"
+version = "0.27.0"
 dependencies = [
  "miniz_oxide",
 ]

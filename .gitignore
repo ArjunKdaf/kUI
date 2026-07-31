@@ -6,3 +6,6 @@
 /backups
 dist/
 /TODO.md
+# prebuilt third-party core(s) bundled into the update payload; pulled
+# from the curated card, not built here (see scripts/package.sh)
+/vendor
