@@ -9,3 +9,5 @@ dist/
 # prebuilt third-party core(s) bundled into the update payload; pulled
 # from the curated card, not built here (see scripts/package.sh)
 /vendor
+# crash evidence pulled off the device (crash-grab.sh) - never published
+/crash-reports

@@ -78,12 +78,21 @@ fn main() {
     let _ = std::fs::create_dir_all(&out);
     let saves: usize = args.get(4).and_then(|s| s.parse().ok()).unwrap_or(30);
 
+    // KUI_CORE_OPTS="key=val,key=val" feeds core options (e.g. smsfm)
+    let opts: Vec<(String, String)> = std::env::var("KUI_CORE_OPTS")
+        .unwrap_or_default()
+        .split(',')
+        .filter_map(|kv| {
+            let (k, v) = kv.split_once('=')?;
+            Some((k.trim().to_string(), v.trim().to_string()))
+        })
+        .collect();
     let core = lr::Core::load(
         Path::new(&args[1]),
         Path::new(&args[2]),
         &out.join("system"),
         &out.join("saves"),
-        Vec::<(String, String)>::new(),
+        opts,
     )
     .expect("core load");
     println!("core: {} | {}x{} @{:.2}fps", core.name, core.av_info.geometry.base_width,
@@ -91,6 +100,11 @@ fn main() {
 
     let mut last = 0u64;
     let mut failures = 0;
+
+    // size-stability probe: a frontend caching serialize_size at content
+    // load sees THIS number; any later growth breaks that contract
+    let s0 = core.save_state().map(|s| s.len()).unwrap_or(0);
+    println!("state_size at frame 0: {s0}");
 
     // boot + get into motion
     let distinct = run_frames(&core, 900, true, &mut last);
@@ -114,8 +128,9 @@ fn main() {
     for i in 1..=saves {
         let snap = core.save_state();
         let ok = snap.is_some();
+        let sz = snap.as_ref().map(|s| s.len()).unwrap_or(0);
         let distinct = run_frames(&core, 120, true, &mut last);
-        println!("save #{i}: serialize_ok={ok} distinct_frames_after={distinct}");
+        println!("save #{i}: serialize_ok={ok} state_size={sz} distinct_frames_after={distinct}");
         if distinct <= 1 {
             // one more chance: some scenes idle briefly
             let retry = run_frames(&core, 240, true, &mut last);
