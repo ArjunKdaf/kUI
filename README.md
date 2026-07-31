@@ -33,6 +33,12 @@ frontend, one small system daemon, all built for exactly this device.
 Faster and lighter than what came before, and fully self-sufficient: kUI
 runs the whole show, from the boot chain to the pixels.
 
+<div align="center">
+
+  <img width=720px src="github/kui-tour.gif">
+
+</div>
+
 ## Why kUI
 
 - **Fast.** Boot adds ~1.2 s over the kernel to a fully-dressed carousel;
