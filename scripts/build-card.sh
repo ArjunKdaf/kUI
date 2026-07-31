@@ -45,7 +45,11 @@ adb pull -a "$SD/.system/res/carousel" "$STAGE/.system/res/" >/dev/null
 
 echo "[6/7] empty Roms tree (folder names only) + empty user dirs"
 mkdir -p "$STAGE/Roms"
-adb shell "ls /mnt/SDCARD/Roms" | tr -d '\r' | while IFS= read -r f; do
+# pipe ls through cat on the device: adb shell allocates a pty, and a
+# bare ls colorizes onto it, baking color codes into the staged names.
+# The (TAG)-suffix filter drops anything that isn't a platform folder.
+adb shell "ls -1 /mnt/SDCARD/Roms | cat" | tr -d '\r' \
+  | grep -E '\([A-Za-z0-9]+\)$' | while IFS= read -r f; do
   [ -n "$f" ] && mkdir -p "$STAGE/Roms/$f"
 done
 for d in Bios Saves Cheats Collections Screenshots; do mkdir -p "$STAGE/$d"; done
