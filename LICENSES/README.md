@@ -8,7 +8,7 @@ release but is not kUI code.
 | `font1.ttf` — Rounded M+ 1c Bold | SIL OFL 1.1 | Copyright 2016 The Rounded M+ Project Authors. |
 | `font2.ttf` — BPreplay Bold | SIL OFL 1.1 | Copyright (c) 2004 by Magenta / 2008 by George Triantafyllakos. |
 | rcheevos (RetroAchievements client) | MIT | vendored at `crates/ra/vendor/rcheevos/LICENSE` |
-| Artbook Next artwork | CC-BY-NC-SA | art by Anthony Caccese |
+| Art Book Next carousel artwork + logos | CC-BY-NC-SA | full credits: `LICENSES/ARTWORK.md` |
 | libretro cores | per core | full inventory with upstreams: `LICENSES/CORES.md` |
 | `cacert.pem` | MPL 2.0 | Mozilla CA certificate bundle |
 

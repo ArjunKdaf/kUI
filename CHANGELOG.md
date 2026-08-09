@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### New
+
+- **Carousel art for every standalone-emu platform on Pak Dek.** The
+  card's Art Book panel set now covers NDS, N64, Dreamcast, PSP, Saturn,
+  ScummVM, TIC-80, PICO-8, Ports, ZQuest, MSU-MD and MKXPZ — panels in
+  all five theme variants plus logos, so installing an emu pak no longer
+  leaves a bare tile. Styles missing upstream art (circuit for the
+  fantasy consoles, a few others) fall back to the default-style panel.
+  Full art credits added at LICENSES/ARTWORK.md.
+
 ### Fixed
 
 - **Pak Dek lists scroll with the cursor again.** Pak rows are taller
