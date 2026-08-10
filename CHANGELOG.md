@@ -14,6 +14,17 @@
 
 ### Fixed
 
+- **Entering PlayStation core options no longer freezes the device.**
+  The options list is enumerated by loading the core in a child
+  process, which pointed the core at `/tmp` as its system directory.
+  pcsx_rearmed — alone among the shipped cores — scans that directory
+  for BIOS files during init, and opening the MTP daemon's named pipe
+  there blocked forever; the launcher waited on the child with no
+  timeout, taking the power button down with it. The child now gets
+  the real per-console BIOS directory, and enumeration is bounded at
+  5 seconds — a core that hangs is killed and its options list simply
+  omitted, never freezing the launcher again.
+
 - **Pak Dek lists scroll with the cursor again.** Pak rows are taller
   than standard list rows, so only 7 fit on screen — but the scroll
   logic assumed 11. The highlight could walk below the visible area,

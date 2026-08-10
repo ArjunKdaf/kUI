@@ -1,5 +1,5 @@
-//! kUI launcher: Carousel (Recents / Collections / The Dude / platforms),
-//! game lists, launching through the pak contract.
+//! kUI launcher: Carousel (The Dude + platforms; Recents and Collections
+//! live in the quick menu), game lists, launching through the pak contract.
 //!
 //! Boot-loop contract (the card's legacy launch loop):
 //!   exit 0 after writing /tmp/next  -> runner evals the command, relaunches us
@@ -459,8 +459,11 @@ fn main() {
     // hidden mode: enumerate a core's options in a disposable process
     // (a crashing core must never take the launcher down)
     let args: Vec<String> = std::env::args().collect();
-    if args.len() == 3 && args[1] == "--enum-core" {
-        match kui_libretro::enumerate_options(std::path::Path::new(&args[2])) {
+    if args.len() == 4 && args[1] == "--enum-core" {
+        match kui_libretro::enumerate_options(
+            std::path::Path::new(&args[2]),
+            std::path::Path::new(&args[3]),
+        ) {
             Ok(defs) => {
                 for d in defs {
                     println!("{}\x1f{}\x1f{}", d.key, d.desc, d.choices.join("|"));
@@ -477,17 +480,59 @@ fn main() {
 }
 
 /// Enumerate core options via a child process; a core crash costs a
-/// child, not the launcher.
-fn enumerate_core_safely(path: &std::path::Path) -> Result<Vec<kui_libretro::VarDef>, String> {
+/// child, not the launcher — and a core that hangs in retro_init costs
+/// 5 seconds and a kill, not the whole device (the power button is
+/// serviced by the event loop this call blocks).
+fn enumerate_core_safely(
+    path: &std::path::Path,
+    system_dir: &std::path::Path,
+) -> Result<Vec<kui_libretro::VarDef>, String> {
+    use std::io::Read;
     let me = std::env::current_exe().map_err(|e| e.to_string())?;
-    let out = std::process::Command::new(me)
-        .args(["--enum-core", &path.display().to_string()])
-        .output()
+    let mut child = std::process::Command::new(me)
+        .args([
+            "--enum-core",
+            &path.display().to_string(),
+            &system_dir.display().to_string(),
+        ])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
         .map_err(|e| e.to_string())?;
-    if !out.status.success() {
-        return Err(format!("core enumeration failed ({})", out.status));
+    // drain on threads: a chatty core (pcsx_rearmed logs a lot) must not
+    // fill the 64KB pipe and wedge against our try_wait loop
+    let mut c_out = child.stdout.take().unwrap();
+    let mut c_err = child.stderr.take().unwrap();
+    let out_h = std::thread::spawn(move || {
+        let mut v = Vec::new();
+        let _ = c_out.read_to_end(&mut v);
+        v
+    });
+    let err_h = std::thread::spawn(move || {
+        let mut v = Vec::new();
+        let _ = c_err.read_to_end(&mut v);
+    });
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    let status = loop {
+        match child.try_wait().map_err(|e| e.to_string())? {
+            Some(s) => break s,
+            None if std::time::Instant::now() >= deadline => {
+                let _ = child.kill();
+                let _ = child.wait();
+                let _ = out_h.join();
+                let _ = err_h.join();
+                return Err("core enumeration timed out".into());
+            }
+            None => std::thread::sleep(std::time::Duration::from_millis(30)),
+        }
+    };
+    let stdout = out_h.join().unwrap_or_default();
+    let _ = err_h.join();
+    if !status.success() {
+        return Err(format!("core enumeration failed ({status})"));
     }
-    let text = String::from_utf8_lossy(&out.stdout);
+    let text = String::from_utf8_lossy(&stdout);
     Ok(text
         .lines()
         .filter_map(|l| {
@@ -2111,12 +2156,19 @@ fn run() -> i32 {
                     }
                 }
                 if confirm && let Some(entry) = cores.get(*selected) {
+                    let bios_root = std::env::var("BIOS_PATH")
+                        .unwrap_or_else(|_| format!("{sd_root}/Bios"));
+                    let mut bios_dir = PathBuf::from(&bios_root);
+                    if let Some(tag) = entry.tags.first() {
+                        bios_dir.push(tag);
+                    }
                     // a core that refuses to enumerate still gets its
                     // frontend rows (Scaling, Effect)
-                    let defs = enumerate_core_safely(&entry.path).unwrap_or_else(|e| {
-                        eprintln!("core enumerate failed: {e}");
-                        Vec::new()
-                    });
+                    let defs =
+                        enumerate_core_safely(&entry.path, &bios_dir).unwrap_or_else(|e| {
+                            eprintln!("core enumerate failed: {e}");
+                            Vec::new()
+                        });
                     next_screen = Some(Screen::CoreOpts {
                         core: entry.stem.clone(),
                         tags: entry.tags.clone(),

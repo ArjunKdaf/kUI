@@ -427,7 +427,7 @@ pub fn kui_option_default(core_stem: &str, key: &str) -> Option<&'static str> {
     kui_option_defaults(core_stem).iter().find(|(k, _)| *k == key).map(|(_, v)| *v)
 }
 
-pub fn enumerate_options(core_path: &Path) -> Result<Vec<VarDef>, String> {
+pub fn enumerate_options(core_path: &Path, system_dir: &Path) -> Result<Vec<VarDef>, String> {
     unsafe {
         HOST = Some(HostState {
             options: std::collections::HashMap::new(),
@@ -446,7 +446,10 @@ pub fn enumerate_options(core_path: &Path) -> Result<Vec<VarDef>, String> {
             pad: 0,
             pixel_format: PixelFormat::Xrgb1555,
             av_dirty: false,
-            system_dir: CString::new("/tmp").unwrap(),
+            // the real BIOS dir, never /tmp: pcsx_rearmed scans system_dir
+            // during retro_init and open()s every entry — a FIFO in the dir
+            // (/tmp/.mtp_fifo) blocks that open forever
+            system_dir: CString::new(system_dir.display().to_string()).unwrap(),
             save_dir: CString::new("/tmp").unwrap(),
         });
     }
