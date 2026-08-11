@@ -30,6 +30,13 @@
   fantasy consoles, a few others) fall back to the default-style panel.
   Full art credits added at LICENSES/ARTWORK.md.
 
+- **Pak Dek installs the latest pak release.** Installing or updating
+  a pak now resolves its newest GitHub release instead of the version
+  pinned in the storefront, so pak updates no longer wait on a
+  storefront refresh. Update badges track the real upstream version
+  for installed paks. Offline or rate-limited devices fall back to
+  the pinned release exactly as before.
+
 ### Fixed
 
 - **Entering PlayStation core options no longer freezes the device.**

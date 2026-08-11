@@ -11,6 +11,7 @@ use crate::json::Json;
 use crate::zip;
 
 const STOREFRONT_URL: &str = "https://raw.githubusercontent.com/ArjunKdaf/kUI/main/storefront.json";
+const USER_AGENT: &str = "User-Agent: kui-store/0.1";
 const PLATFORM: &str = "tg5040";
 const SDCARD: &str = "/mnt/SDCARD";
 
@@ -60,10 +61,31 @@ pub struct Pak {
 }
 
 /// Fetch and parse the storefront manifest. Only paks that list the
-/// `tg5040` platform and are not disabled are returned.
+/// `tg5040` platform and are not disabled are returned. For paks that are
+/// already installed, the pinned version is replaced with the repo's latest
+/// release tag (best-effort), so update detection tracks upstream releases
+/// rather than the storefront pin.
 pub fn fetch_storefront() -> Result<Vec<Pak>, String> {
     let body = http::fetch_text(STOREFRONT_URL, &[])?;
-    parse_storefront(&body)
+    let mut paks = parse_storefront(&body)?;
+    refresh_installed_versions(&mut paks);
+    Ok(paks)
+}
+
+/// For installed paks only (a handful, vs the whole store), swap the pinned
+/// version for the repo's latest release tag. One GitHub API call per
+/// installed pak; a failed lookup (offline, rate-limited, non-GitHub repo)
+/// keeps the pin. Only reached when the storefront fetch itself succeeded,
+/// so the network is already known to be up.
+fn refresh_installed_versions(paks: &mut [Pak]) {
+    for pak in paks.iter_mut() {
+        if installed_version(pak).is_none() {
+            continue;
+        }
+        if let Ok((tag, _)) = latest_release(pak) {
+            pak.version = tag;
+        }
+    }
 }
 
 fn parse_storefront(body: &str) -> Result<Vec<Pak>, String> {
@@ -152,23 +174,69 @@ pub fn installed_version(pak: &Pak) -> Option<String> {
     root.get("version").and_then(Json::as_str).map(str::to_string)
 }
 
-/// Download and install (or update) a pak. `progress` receives short
-/// human-readable status lines.
-pub fn install_pak(pak: &Pak, mut progress: impl FnMut(&str)) -> Result<(), String> {
+/// The GitHub `releases/latest` API URL for a pak's repo, if it is one.
+fn api_latest_url(repo_url: &str) -> Option<String> {
+    let repo = repo_url
+        .trim_end_matches('/')
+        .strip_prefix("https://github.com/")?;
+    Some(format!("https://api.github.com/repos/{repo}/releases/latest"))
+}
+
+/// The latest GitHub release for a pak's repo: `(tag, download URL)` of the
+/// asset named `release_filename`. Errors (offline, rate-limited, non-GitHub
+/// repo, no such asset) leave the caller on the pinned storefront data.
+fn latest_release(pak: &Pak) -> Result<(String, String), String> {
+    let url = api_latest_url(&pak.repo_url)
+        .ok_or_else(|| format!("not a GitHub repo: {}", pak.repo_url))?;
+    let body = http::fetch_text(&url, &[USER_AGENT])?;
+    parse_latest_release(&body, &pak.release_filename)
+}
+
+/// Pull `(tag_name, asset URL)` out of a GitHub `releases/latest` response.
+fn parse_latest_release(body: &str, release_filename: &str) -> Result<(String, String), String> {
+    let root = Json::parse(body)?;
+    let tag = root
+        .get("tag_name")
+        .and_then(Json::as_str)
+        .filter(|t| !t.is_empty())
+        .ok_or("github latest release: missing tag_name")?
+        .to_string();
+    let assets = root.get("assets").and_then(Json::as_arr).unwrap_or(&[]);
+    let url = assets
+        .iter()
+        .find(|a| a.get("name").and_then(Json::as_str) == Some(release_filename))
+        .and_then(|a| a.get("browser_download_url").and_then(Json::as_str))
+        .ok_or_else(|| format!("latest release has no asset {release_filename}"))?
+        .to_string();
+    Ok((tag, url))
+}
+
+/// Download and install (or update) a pak. Installs the repo's LATEST
+/// release when it can be resolved; the pinned storefront version/URL is
+/// the fallback (offline, rate-limited). `progress` receives short
+/// human-readable status lines. Returns the version that was installed.
+pub fn install_pak(pak: &Pak, mut progress: impl FnMut(&str)) -> Result<String, String> {
     // Record the SD-root baseline once, before this pak touches anything,
     // so removal can later spot the files it drops at root — even ones
     // that only appear at first launch, not at install. Preserved across
     // updates (an update re-runs install_pak but must keep the original).
     record_root_baseline(pak);
 
-    let url = format!(
-        "{}/releases/download/{}/{}",
-        pak.repo_url.trim_end_matches('/'),
-        pak.version,
-        pak.release_filename
-    );
+    progress("Checking latest release...");
+    let (version, url) = match latest_release(pak) {
+        Ok((tag, url)) => (tag, url),
+        Err(_) => (
+            pak.version.clone(),
+            format!(
+                "{}/releases/download/{}/{}",
+                pak.repo_url.trim_end_matches('/'),
+                pak.version,
+                pak.release_filename
+            ),
+        ),
+    };
     let tmp_zip = PathBuf::from("/tmp").join(&pak.release_filename);
-    progress(&format!("Downloading {} {}...", pak.name, pak.version));
+    progress(&format!("Downloading {} {}...", pak.name, version));
     http::download(&url, &tmp_zip, &[])?;
 
     let dest = install_dir(pak);
@@ -192,7 +260,7 @@ pub fn install_pak(pak: &Pak, mut progress: impl FnMut(&str)) -> Result<(), Stri
         }
     }
     progress("Done");
-    Ok(())
+    Ok(version)
 }
 
 /// Remove an installed pak: its install dir, plus the files it left at the
@@ -426,6 +494,38 @@ mod tests {
         let baseline_b = set(&["Roms", "onlyA"]);
         let got = leftover_candidates(&baseline_a, &current, &[baseline_b]);
         assert_eq!(got, ["onlyA"]);
+    }
+
+    #[test]
+    fn latest_release_api_url() {
+        assert_eq!(
+            api_latest_url("https://github.com/rommapp/grout").as_deref(),
+            Some("https://api.github.com/repos/rommapp/grout/releases/latest")
+        );
+        // trailing slash tolerated; non-GitHub repos have no API URL
+        assert_eq!(
+            api_latest_url("https://github.com/ben16w/minui-portmaster/").as_deref(),
+            Some("https://api.github.com/repos/ben16w/minui-portmaster/releases/latest")
+        );
+        assert_eq!(api_latest_url("https://example.com/x"), None);
+    }
+
+    #[test]
+    fn parses_latest_release() {
+        let body = r#"{
+          "tag_name": "v4.9.0",
+          "assets": [
+            { "name": "Grout-source.tar.gz", "browser_download_url": "https://x/src.tar.gz" },
+            { "name": "Grout.pak.zip", "browser_download_url": "https://x/Grout.pak.zip" }
+          ]
+        }"#;
+        let (tag, url) = parse_latest_release(body, "Grout.pak.zip").unwrap();
+        assert_eq!(tag, "v4.9.0");
+        assert_eq!(url, "https://x/Grout.pak.zip");
+        // no asset with the storefront's filename -> error (pinned fallback)
+        assert!(parse_latest_release(body, "NDS.pak.zip").is_err());
+        // rate-limit / error bodies have no tag_name -> error
+        assert!(parse_latest_release(r#"{ "message": "rate limited" }"#, "x.zip").is_err());
     }
 
     #[test]
