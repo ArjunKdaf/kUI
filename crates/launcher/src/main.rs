@@ -3507,7 +3507,9 @@ fn run() -> i32 {
                     && s_step != 0
                     && !platforms.is_empty()
                 {
-                    // L1/R1: hop platforms without leaving the list
+                    // L1/R1: hop platforms without leaving the list;
+                    // park the cursor so hopping back restores it
+                    remember.insert(tile, (*selected, *scroll));
                     let np = wrap(*pi, s_step, platforms.len());
                     tile = tiles
                         .iter()
