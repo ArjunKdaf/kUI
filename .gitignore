@@ -6,6 +6,8 @@
 /backups
 dist/
 /TODO.md
+# internal design/research notes - never published
+/docs
 # prebuilt third-party core(s) bundled into the update payload; pulled
 # from the curated card, not built here (see scripts/package.sh)
 /vendor

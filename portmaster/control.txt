@@ -1,0 +1,69 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# kUI ports control layer — the platform half of the ports contract.
+# Every port launch script sources this file first; it must export the
+# environment the ports ecosystem expects. Interface-compatible with
+# the PortMaster runtime contract; implemented fresh for kUI.
+
+# No visible text console on this device; port text output goes to
+# stdout (the launcher's log).
+CUR_TTY="/dev/fd/1"
+
+# Ports payload root: game dirs live at /$directory/ports/<game>
+export directory="mnt/SDCARD/Data"
+export controlfolder="/mnt/SDCARD/Data/PortMaster"
+
+# kUI runs as root; no sudo wrapper needed anywhere.
+export ESUDO=""
+export ESUDOKILL="-1"
+export ESUDOKILL2="-1"
+
+# The vendor SDL2 (and friends) live outside the default loader path;
+# gptokeyb and any port without bundled libs need them findable. Ports
+# prepend their own lib dirs, so this stays the fallback.
+export LD_LIBRARY_PATH="/usr/trimui/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+# The control folder carries tools the busybox userland lacks (bash,
+# pkill); ports and gptokeyb find them here.
+export PATH="$controlfolder:$PATH"
+
+# Squashfs runtime mounts break against the stock HOME; keep all port
+# home data on the card.
+[ ! -d "/mnt/SDCARD/Data/home" ] && mkdir -p "/mnt/SDCARD/Data/home"
+export HOME="/mnt/SDCARD/Data/home"
+
+export SDL_GAMECONTROLLERCONFIG_FILE="$controlfolder/gamecontrollerdb.txt"
+SDLDBFILE="$SDL_GAMECONTROLLERCONFIG_FILE"
+SDLDBUSERFILE="$controlfolder/gamecontrollerdb.txt"
+
+# Godot ports read these for the window size.
+GODOT2_OPTS="-r 1024x768 -f"
+GODOT_OPTS="--resolution 1024x768 -f"
+
+get_controls() {
+  # The vendor input daemon presents one virtual pad, "TRIMUI Player1"
+  # (an Xbox-360-compatible identity), so one known mapping line is
+  # the whole story on this device.
+  DEVICE="030000005e0400008e02000014010000"
+  param_device="trimui"
+  ANALOGSTICKS=0
+  LOWRES="N"
+  export SDL_GAMECONTROLLERCONFIG_FILE="/tmp/gamecontrollerdb.txt"
+  grep "$DEVICE" "$controlfolder/gamecontrollerdb.txt" > /tmp/gamecontrollerdb.txt
+  sdl_controllerconfig="$(< /tmp/gamecontrollerdb.txt)"
+}
+
+source "$controlfolder/device_info.txt"
+source "$controlfolder/funcs.txt"
+
+# gptokeyb injects keyboard/mouse events through uinput.
+chmod 666 /dev/uinput 2> /dev/null
+
+# Quit combo = MENU+START (kUI's own save+quit pattern). MENU is the
+# pad's guide button; without this, SELECT+START would also quit —
+# and SELECT is a live in-game key in many ports.
+export HOTKEY="guide"
+
+export GPTOKEYB2="env LD_PRELOAD=$controlfolder/libinterpose.aarch64.so $controlfolder/gptokeyb2 $ESUDOKILL2"
+export GPTOKEYB="$controlfolder/gptokeyb.wrap $ESUDOKILL"

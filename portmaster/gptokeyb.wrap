@@ -1,0 +1,7 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Diagnostic wrapper: run gptokeyb with everything logged.
+PM="/mnt/SDCARD/Data/PortMaster"
+echo "=== gptokeyb start $(date) args: $*" >> /tmp/gptokeyb.log
+"$PM/gptokeyb" "$@" >> /tmp/gptokeyb.log 2>&1
+echo "=== gptokeyb EXITED rc=$? $(date)" >> /tmp/gptokeyb.log

@@ -4,6 +4,15 @@
 
 ### New
 
+- **Native ports support (first cut).** kUI now launches PortMaster-
+  ecosystem ports with its own built-in control layer — no PortMaster
+  pak needed. Port launcher scripts in `Roms/Ports (PORTS)` appear as
+  regular games and run under kUI's bundled bash with the full ports
+  environment (controller mapping, save-path binding, runtime squashfs
+  mounts, gptokeyb input translation). Quit any port with MENU+START,
+  the same combo kUI uses in-game. Verified with DevilutionX and
+  Vanilla RA; the in-OS ports browser/installer comes next.
+
 - **Random row on every platform game list.** The first row of each
   platform's list is now "Random": press A and a random game from that
   platform launches. It draws like a pinned entry and always sits above

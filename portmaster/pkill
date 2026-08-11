@@ -1,0 +1,20 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Minimal pkill for the busybox userland: pkill [-SIG] [-f] <name>.
+# gptokeyb (and some port scripts) shell out to pkill to stop games.
+SIG=-15
+PAT=""
+for a in "$@"; do
+  case "$a" in
+    -f) ;;
+    -*) SIG="$a" ;;
+    *) PAT="$a" ;;
+  esac
+done
+[ -z "$PAT" ] && exit 1
+FOUND=1
+killall "$SIG" "$PAT" 2> /dev/null && FOUND=0
+for p in $(pidof "$PAT" 2> /dev/null); do
+  kill "$SIG" "$p" 2> /dev/null && FOUND=0
+done
+exit $FOUND

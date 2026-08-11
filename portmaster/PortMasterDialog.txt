@@ -1,0 +1,11 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Some port scripts source this file directly for the GUI dialog
+# channel. kUI has no dialog pipe; everything prints to stdout.
+# (funcs.txt defines the same stubs for scripts that only source it.)
+
+PortMasterDialogInit() { :; }
+PortMasterDialog() { shift; echo "$@"; }
+PortMasterDialogResult() { echo "OKAY"; }
+PortMasterDialogExit() { :; }

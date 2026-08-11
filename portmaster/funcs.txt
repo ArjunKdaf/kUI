@@ -1,0 +1,71 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Helper functions for port scripts.
+
+if [ ! -z "$PM_FUNCS_VERSION" ]; then
+  return
+fi
+export PM_FUNCS_VERSION=3
+
+export PM_SCRIPTNAME="$(basename "${PM_SCRIPTNAME:-$0}")"
+export PM_PORTNAME="${PM_PORTNAME:-${PM_SCRIPTNAME%.sh}}"
+export PM_VERSION="$(cat "$controlfolder/version" 2> /dev/null)"
+export PM_RESOURCE_DIR="$controlfolder/resources"
+# We run as root; bind mounts always available (FAT32 has no symlinks).
+export PM_CAN_MOUNT="Y"
+
+# Save-path redirection. Usage: bind_directories <where the game
+# looks> <where the data really lives>.
+bind_directories() {
+  [ -L "$1" ] && rm -f "$1"
+  if [ -d "$2" ]; then
+    mkdir -p "$1"
+    umount "$1" 2> /dev/null
+    mount --bind "$2" "$1" && echo "bound $2 -> $1"
+  else
+    echo "bind_directories: no directory at $2"
+  fi
+}
+
+bind_files() {
+  [ -L "$1" ] && rm -f "$1"
+  if [ -f "$2" ]; then
+    touch "$1"
+    umount "$1" 2> /dev/null
+    mount --bind "$2" "$1" && echo "bound $2 -> $1"
+  else
+    echo "bind_files: no file at $2"
+  fi
+}
+
+# Dialog channel to a ports-manager GUI. kUI has no such pipe; the
+# messages go to stdout (launcher log) instead.
+PortMasterDialogInit() { :; }
+PortMasterDialog() { shift; echo "$@"; }
+PortMasterDialogResult() { echo "OKAY"; }
+PortMasterDialogExit() { :; }
+
+pm_begin_splash() { :; }
+pm_end_splash() { :; }
+
+pm_message() {
+  echo "$1"
+}
+
+pm_show_error() {
+  echo "ERROR: $1"
+}
+
+pm_message_end() { :; }
+
+pm_gptokeyb_finish() {
+  # busybox userland: no pkill
+  killall -9 gptokeyb gptokeyb2 2> /dev/null
+}
+
+pm_finish() {
+  pm_gptokeyb_finish
+}
+
+pm_platform_helper() { :; }

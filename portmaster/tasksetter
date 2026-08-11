@@ -1,0 +1,6 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Ports source this expecting $TASKSET for pinning to the fastest
+# cores. The a133plus has four identical A53s — nothing to pin.
+export TASKSET=""

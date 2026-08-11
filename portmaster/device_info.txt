@@ -1,0 +1,29 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Device facts for port scripts. Everything is known at build time on
+# this hardware — nothing is probed.
+
+export CFW_NAME="kUI"
+export CFW_VERSION="$(cat /mnt/SDCARD/VERSION 2> /dev/null)"
+export CFW_GLIBC="228"
+
+# Brick-class hardware (1024x768 4:3, no analog sticks, a133plus):
+# ports carry per-device fixes keyed on this name, and every one of
+# them applies to us.
+export DEVICE_NAME="TrimUI Brick"
+export DEVICE_CPU="a133plus"
+export DEVICE_ARCH="aarch64"
+export DEVICE_HAS_AARCH64="Y"
+export DEVICE_HAS_ARMHF="N"
+export DEVICE_HAS_X86="N"
+export DEVICE_HAS_X86_64="N"
+export DEVICE_RAM="1gb"
+
+export DISPLAY_WIDTH="1024"
+export DISPLAY_HEIGHT="768"
+export DISPLAY_ORIENTATION="0"
+export ASPECT_X="4"
+export ASPECT_Y="3"
+export ANALOG_STICKS="0"
+export ANALOGSTICKS="0"

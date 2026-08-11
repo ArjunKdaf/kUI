@@ -600,11 +600,15 @@ fn run() -> i32 {
             unsafe { std::env::set_var("TZ", format!("UTC{:+}", -off)) };
         }
     }
+    // ports platforms (.sh launchers) are launchable when the ports
+    // control layer is on the card
+    let ports_ready = sd.root.join("Data/PortMaster/control.txt").is_file();
     platforms.retain(|p| {
         let ok = sd.emu_launch(&p.tag).is_some()
             || resolve_core(&fe_cfg, &sd, &p.tag)
                 .map(|stem| cores_dir(&sd).join(format!("{stem}_libretro.so")).is_file())
-                .unwrap_or(false);
+                .unwrap_or(false)
+            || (ports_ready && p.roms.iter().any(|r| r.ends_with(".sh")));
         if !ok {
             println!("hidden (no emu pak): {} ({})", p.display, p.tag);
         }
@@ -934,6 +938,10 @@ fn run() -> i32 {
         std::sync::Arc::new(std::sync::Mutex::new(String::new()));
     type Fetched<T> = std::sync::Arc<std::sync::Mutex<Option<Result<T, String>>>>;
     let pak_fetch: Fetched<Vec<kui_store::Pak>> =
+        std::sync::Arc::new(std::sync::Mutex::new(None));
+    // (pak id, version) of a just-finished install: the worker resolves the
+    // LATEST release, which can differ from the version pinned in the list.
+    let pak_installed: std::sync::Arc<std::sync::Mutex<Option<(String, String)>>> =
         std::sync::Arc::new(std::sync::Mutex::new(None));
     let mut pak_all: Vec<kui_store::Pak> = Vec::new();
     let rel_fetch: Fetched<Vec<kui_store::Release>> =
@@ -2496,6 +2504,18 @@ fn run() -> i32 {
                 }
             }
             Screen::PakDek { paks, selected, scroll, cat_sel, .. } => {
+                // A finished install resolved the LATEST release; sync the
+                // listed version so the row reads "installed", not a stale
+                // "UPDATE" against the storefront pin.
+                if let Ok(mut d) = pak_installed.lock()
+                    && let Some((id, ver)) = d.take()
+                {
+                    for p in paks.iter_mut().chain(pak_all.iter_mut()) {
+                        if p.id == id {
+                            p.version = ver.clone();
+                        }
+                    }
+                }
                 if v_step != 0 && !paks.is_empty() {
                     *selected = wrap(*selected, v_step, paks.len());
                     let visible = pakdek_visible_rows();
@@ -2520,6 +2540,7 @@ fn run() -> i32 {
                 {
                     let p2 = p.clone();
                     let msg = store_msg.clone();
+                    let done = pak_installed.clone();
                     if let Ok(mut m) = msg.lock() {
                         *m = format!("Installing {}...", p2.name);
                     }
@@ -2531,7 +2552,12 @@ fn run() -> i32 {
                         });
                         if let Ok(mut m) = msg.lock() {
                             *m = match r2 {
-                                Ok(()) => format!("Done — {} installed", p2.name),
+                                Ok(ver) => {
+                                    if let Ok(mut d) = done.lock() {
+                                        *d = Some((p2.id.clone(), ver));
+                                    }
+                                    format!("Done — {} installed", p2.name)
+                                }
                                 Err(e) => format!("Install failed: {e}"),
                             };
                         }
@@ -6376,7 +6402,6 @@ enum LaunchResult {
     NoOp,
 }
 
-/// Write /tmp/next + recents and return the exit code (device); log-only on desktop.
 /// Time-seeded pick for the Random row; plenty for "surprise me".
 fn rand_below(len: usize) -> usize {
     if len == 0 {
@@ -6389,6 +6414,7 @@ fn rand_below(len: usize) -> usize {
     (n % len as u128) as usize
 }
 
+/// Write /tmp/next + recents and return the exit code (device); log-only on desktop.
 fn launch_rom(sd: &Sd, cfg: &kui_config::Config, rom: &PathBuf, label: &str, on_device: bool) -> LaunchResult {
     let Some(tag) = sd.tag_of_rom(rom) else {
         eprintln!("no platform tag for {rom:?}");
@@ -6399,7 +6425,19 @@ fn launch_rom(sd: &Sd, cfg: &kui_config::Config, rom: &PathBuf, label: &str, on_
     let native_core = resolve_core(cfg, sd, &tag)
         .map(|stem| cores_dir(sd).join(format!("{stem}_libretro.so")))
         .filter(|p| p.is_file());
-    let cmd = if let Some(core) = native_core {
+    let cmd = if rom.extension().is_some_and(|e| e == "sh") {
+        // Ports: launcher scripts run under our bash with the ports
+        // control-layer env; scripts find the control folder via
+        // $XDG_DATA_HOME/PortMaster
+        if !sd.root.join("Data/PortMaster/control.txt").is_file() {
+            return LaunchResult::Fail("Ports support not installed".into());
+        }
+        format!(
+            "XDG_DATA_HOME=/mnt/SDCARD/Data HOME=/mnt/SDCARD/Data/home {} {}",
+            shell_quote("/mnt/SDCARD/Data/PortMaster/bash"),
+            shell_quote(&rom.display().to_string())
+        )
+    } else if let Some(core) = native_core {
         format!(
             "{} {} {}",
             shell_quote("/mnt/SDCARD/kui-frontend"),
