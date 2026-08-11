@@ -154,6 +154,9 @@ struct Row {
 
 enum RowAction {
     Launch(PathBuf),
+    /// Launch a random game from the surrounding list. Rendered as a
+    /// permanently pinned first row; not pinnable/wipeable itself.
+    LaunchRandom,
     OpenCollection(PathBuf),
     OpenSmartCollection(String),
     OpenTile(usize),
@@ -847,9 +850,11 @@ fn run() -> i32 {
                 .collect();
             names.sort_by_key(|(pinned, name, _)| (!*pinned, name.to_lowercase()));
             if let Some(i) = names.iter().position(|(_, _, abs)| *abs == last) {
+                // +1: the Random row sits above every game
+                let i = i + 1;
                 remember.insert(
                     tile,
-                    (i, i.saturating_sub(5).min(names.len().saturating_sub(11))),
+                    (i, i.saturating_sub(5).min((names.len() + 1).saturating_sub(11))),
                 );
             }
         }
@@ -3596,6 +3601,27 @@ fn run() -> i32 {
                                 LaunchResult::NoOp => {}
                             }
                         }
+                        RowAction::LaunchRandom => {
+                            let candidates: Vec<&PathBuf> = rows
+                                .iter()
+                                .filter_map(|row| match &row.action {
+                                    RowAction::Launch(rom) => Some(rom),
+                                    _ => None,
+                                })
+                                .collect();
+                            if let Some(&rom) = candidates.get(rand_below(candidates.len())) {
+                                let label = clean_name(
+                                    rom.file_name().and_then(|n| n.to_str()).unwrap_or(""),
+                                );
+                                match launch_rom(&sd, &cfg, rom, &label, on_device) {
+                                    LaunchResult::Started(code) => return code,
+                                    LaunchResult::Fail(msg) => {
+                                        toast = Some((msg, now_hint() + TOAST_TIME));
+                                    }
+                                    LaunchResult::NoOp => {}
+                                }
+                            }
+                        }
                         RowAction::OpenCollection(path) => {
                             next_screen = Some(open_collection_detail(&sd, path));
                             boxart.clear();
@@ -3798,8 +3824,9 @@ fn run() -> i32 {
                         }
                     }
                     rows.sort_by_key(|row| {
+                        let random = matches!(row.action, RowAction::LaunchRandom);
                         let pinned = row.label.starts_with("> ");
-                        (!pinned, row.label.to_lowercase())
+                        (!random, !pinned, row.label.to_lowercase())
                     });
                     if let Some(i) = rows.iter().position(
                         |row| matches!(&row.action, RowAction::Launch(r) if *r == rom),
@@ -5793,8 +5820,17 @@ fn run() -> i32 {
                     ("START", "The Dude"),
                     ("A", "Open"),
                 ],
-                Screen::List { kind: ListKind::Platform(_), .. } => {
-                    &[("Y", ""), ("X", "Pin"), ("A", "Open"), ("B", "Back")]
+                Screen::List { kind: ListKind::Platform(_), rows, selected, .. } => {
+                    match rows.get(*selected) {
+                        // the Random row: not pinnable, not wipeable
+                        Some(Row { action: RowAction::LaunchRandom, .. }) => {
+                            &[("A", "Open"), ("B", "Back")]
+                        }
+                        Some(row) if row.label.starts_with("> ") => {
+                            &[("Y", ""), ("X", "Unpin"), ("A", "Open"), ("B", "Back")]
+                        }
+                        _ => &[("Y", ""), ("X", "Pin"), ("A", "Open"), ("B", "Back")],
+                    }
                 }
                 Screen::List { kind: ListKind::Recents, .. } => {
                     &[("Y", ""), ("A", "Open"), ("B", "Back")]
@@ -6090,6 +6126,15 @@ fn open_tile(
                         let pinned = row.label.starts_with("> ");
                         (!pinned, row.label.to_lowercase())
                     });
+                    if !rows.is_empty() {
+                        rows.insert(
+                            0,
+                            Row {
+                                label: "> Random".into(),
+                                action: RowAction::LaunchRandom,
+                            },
+                        );
+                    }
                     rows
                 },
                 selected: 0,
@@ -6330,6 +6375,18 @@ enum LaunchResult {
 }
 
 /// Write /tmp/next + recents and return the exit code (device); log-only on desktop.
+/// Time-seeded pick for the Random row; plenty for "surprise me".
+fn rand_below(len: usize) -> usize {
+    if len == 0 {
+        return 0;
+    }
+    let n = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    (n % len as u128) as usize
+}
+
 fn launch_rom(sd: &Sd, cfg: &kui_config::Config, rom: &PathBuf, label: &str, on_device: bool) -> LaunchResult {
     let Some(tag) = sd.tag_of_rom(rom) else {
         eprintln!("no platform tag for {rom:?}");

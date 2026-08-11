@@ -4,6 +4,15 @@
 
 ### New
 
+- **Random row on every platform game list.** The first row of each
+  platform's list is now "Random": press A and a random game from that
+  platform launches. It draws like a pinned entry and always sits above
+  the pinned games, but can't be unpinned or wiped — list order is
+  Random, then pins, then everything else. Unlike The Dude's library-wide
+  mystery pick, this one stays inside the platform you're browsing. The
+  hint bar follows the cursor: X reads Pin or Unpin to match the game
+  under it, and disappears on the Random row.
+
 - **Carousel art for every standalone-emu platform on Pak Dek.** The
   card's Art Book panel set now covers NDS, N64, Dreamcast, PSP, Saturn,
   ScummVM, TIC-80, PICO-8, Ports, ZQuest, MSU-MD and MKXPZ — panels in
