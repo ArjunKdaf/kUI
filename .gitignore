@@ -13,3 +13,8 @@ dist/
 /vendor
 # crash evidence pulled off the device (crash-grab.sh) - never published
 /crash-reports
+
+# build artifacts
+gastest.o
+*.o
+/portmaster/kui_portrun

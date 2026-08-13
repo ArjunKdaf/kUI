@@ -135,15 +135,17 @@ fn entry_data(data: &[u8], e: &Entry) -> Result<Vec<u8>, String> {
     }
 }
 
-/// Reject path traversal; build a safe relative path.
+/// Reject path traversal; build a safe relative path. ".." only counts
+/// as a whole component — filenames like "xmaskye jr..xml" (real, in the
+/// xye port) are legitimate.
 fn sanitize(name: &str) -> Result<PathBuf, String> {
-    if name.contains("..") {
-        return Err(format!("zip entry rejected (path traversal): {name}"));
-    }
     let mut out = PathBuf::new();
     for comp in name.split('/') {
         if comp.is_empty() || comp == "." {
             continue;
+        }
+        if comp == ".." || comp.contains('\\') {
+            return Err(format!("zip entry rejected (path traversal): {name}"));
         }
         out.push(comp);
     }
@@ -327,6 +329,22 @@ mod tests {
         let err = unzip(&zip_path, &dir.join("out")).unwrap_err();
         assert!(err.contains("path traversal"), "got: {err}");
         assert!(!dir.join("evil.txt").exists());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn dotdot_inside_filename_is_fine() {
+        // real case: the xye port ships "res/xmaskye jr..xml"
+        let dir = scratch("dotdotname");
+        let zip = build_zip(&[
+            stored("Xye.sh", b"#!"),
+            stored("xye/res/xmaskye jr..xml", b"ok"),
+        ]);
+        let zip_path = dir.join("t.zip");
+        fs::write(&zip_path, &zip).unwrap();
+        let out = dir.join("out");
+        unzip(&zip_path, &out).unwrap();
+        assert_eq!(fs::read(out.join("xye/res/xmaskye jr..xml")).unwrap(), b"ok");
         let _ = fs::remove_dir_all(&dir);
     }
 

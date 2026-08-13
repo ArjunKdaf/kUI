@@ -4,6 +4,7 @@
 //! rest of the project. All downloads are atomic (tmp + rename).
 
 pub mod json;
+pub mod ports;
 pub mod storefront;
 pub mod updater;
 pub mod zip;
