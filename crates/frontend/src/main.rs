@@ -250,14 +250,21 @@ fn main() {
 
 fn run() -> i32 {
     let args: Vec<String> = std::env::args().collect();
-    if args.len() < 3 {
-        eprintln!("usage: {} <core.so> <rom>", args[0]);
+    if args.len() < 2 {
+        eprintln!("usage: {} <core.so> [rom]", args[0]);
         return 2;
     }
     let core_path = PathBuf::from(&args[1]);
-    let rom_path = PathBuf::from(&args[2]);
+    // no rom = contentless core (RetroArch-style ports ship these);
+    // the core runs standalone and saves key off the core name
+    let contentless = args.len() < 3;
+    let rom_path = if contentless {
+        core_path.clone()
+    } else {
+        PathBuf::from(&args[2])
+    };
     let on_device = std::env::var("DEVICE").is_ok();
-    let tag = tag_of(&rom_path);
+    let tag = if contentless { "PORTS".to_string() } else { tag_of(&rom_path) };
     let sd_root = std::env::var("SDCARD_PATH").unwrap_or_else(|_| "/mnt/SDCARD".into());
     let cfg = kui_config::Config::load(&Path::new(&sd_root).join(".userdata/shared"));
 
@@ -270,7 +277,8 @@ fn run() -> i32 {
     // zipped roms: cores that read zips natively (dosbox, fbneo — the
     // archive IS the content) get the file untouched; everyone else gets
     // the extracted rom. Save naming keeps following the zip itself.
-    let is_zip = rom_path.extension().is_some_and(|e| e.eq_ignore_ascii_case("zip"));
+    let is_zip = !contentless
+        && rom_path.extension().is_some_and(|e| e.eq_ignore_ascii_case("zip"));
     let load_path = if is_zip && !lr::Core::core_supports_zip(&core_path) {
         match extract_zip(&rom_path) {
             Some(p) => p,
@@ -282,11 +290,19 @@ fn run() -> i32 {
     } else {
         rom_path.clone()
     };
-    let stem = rom_path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
     let core_stem_name = core_path
         .file_stem()
-        .map(|s| s.to_string_lossy().replace("_libretro", ""))
+        .map(|s| {
+            // ports suffix cores as <name>_libretro.so.aarch64
+            let s = s.to_string_lossy().replace("_libretro", "");
+            s.trim_end_matches(".so").to_string()
+        })
         .unwrap_or_default();
+    let stem = if contentless {
+        core_stem_name.clone()
+    } else {
+        rom_path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default()
+    };
     // RA hardcore (docs.retroachievements.org hardcore compliance): the
     // toggle governs the whole session — cheats never touch memory, save
     // states may be written but never loaded, and core options RA bans
@@ -317,7 +333,13 @@ fn run() -> i32 {
             keep
         });
     }
-    let mut core = match lr::Core::load(&core_path, &load_path, &system_dir, &save_dir, opts) {
+    let mut core = match lr::Core::load(
+        &core_path,
+        (!contentless).then_some(load_path.as_path()),
+        &system_dir,
+        &save_dir,
+        opts,
+    ) {
         Ok(c) => c,
         Err(e) => {
             eprintln!("core load failed: {e}");
@@ -357,7 +379,8 @@ fn run() -> i32 {
     // Token login + game identify are synchronous; only attempted online.
     let mut ra: Option<kui_ra::RaClient> = None;
     let mut ra_announce: Option<String> = None;
-    if cfg.get_or("ra.enabled", "off") == "on" {
+    // contentless: no rom to hash, no RA session
+    if !contentless && cfg.get_or("ra.enabled", "off") == "on" {
         let ra_user = cfg.get_or("ra.user", "").to_string();
         let ra_token = cfg.get_or("ra.token", "").to_string();
         // no wifi gate: the offline cache serves the session when the

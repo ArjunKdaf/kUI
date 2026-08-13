@@ -89,7 +89,7 @@ fn main() {
         .collect();
     let core = lr::Core::load(
         Path::new(&args[1]),
-        Path::new(&args[2]),
+        Some(Path::new(&args[2])),
         &out.join("system"),
         &out.join("saves"),
         opts,

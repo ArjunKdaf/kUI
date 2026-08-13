@@ -59,6 +59,7 @@ const ENV_SET_DISK_CONTROL_INTERFACE: c_uint = 13;
 const ENV_GET_VARIABLE: c_uint = 15;
 const ENV_SET_VARIABLES: c_uint = 16;
 const ENV_GET_VARIABLE_UPDATE: c_uint = 17;
+const ENV_SET_SUPPORT_NO_GAME: c_uint = 18;
 const ENV_GET_LOG_INTERFACE: c_uint = 27;
 const ENV_GET_SAVE_DIRECTORY: c_uint = 31;
 const ENV_SET_SYSTEM_AV_INFO: c_uint = 32;
@@ -254,6 +255,9 @@ unsafe extern "C" fn cb_environment(cmd: c_uint, data: *mut c_void) -> bool {
             unsafe { *(data as *mut bool) = dirty };
             true
         }
+        // contentless cores (ports ship these) announce they run without
+        // a game; acknowledging lets retro_load_game(NULL) succeed
+        ENV_SET_SUPPORT_NO_GAME => true,
         _ => false,
     }
 }
@@ -545,9 +549,11 @@ pub fn core_supports_zip(core_path: &Path) -> bool {
 }
 
 /// Load a core, init callbacks, load the ROM. `system_dir` = BIOS dir.
+    /// `rom_path: None` = contentless launch (retro_load_game(NULL));
+    /// only meaningful for cores that support no-game.
     pub fn load(
         core_path: &Path,
-        rom_path: &Path,
+        rom_path: Option<&Path>,
         system_dir: &Path,
         save_dir: &Path,
         options: impl IntoIterator<Item = (String, String)>,
@@ -651,28 +657,43 @@ pub fn core_supports_zip(core_path: &Path) -> bool {
             }
         };
 
-        let cpath = CString::new(rom_path.to_string_lossy().as_bytes()).map_err(|e| e.to_string())?;
-        let data = if sysinfo.need_fullpath {
-            Vec::new()
-        } else {
-            std::fs::read(rom_path).map_err(|e| e.to_string())?
-        };
-        let gi = GameInfo {
-            path: cpath.as_ptr(),
-            data: if data.is_empty() { std::ptr::null() } else { data.as_ptr() as *const c_void },
-            size: data.len(),
-            meta: std::ptr::null(),
-        };
         let trace = std::env::var_os("KUI_TRACE").is_some();
-        if trace {
-            eprintln!(
-                "load_game: {} bytes, need_fullpath={}, path={:?}",
-                data.len(),
-                sysinfo.need_fullpath,
-                rom_path
-            );
-        }
-        let ok = unsafe { load_game(&gi) };
+        let ok = match rom_path {
+            Some(rom_path) => {
+                let cpath = CString::new(rom_path.to_string_lossy().as_bytes())
+                    .map_err(|e| e.to_string())?;
+                let data = if sysinfo.need_fullpath {
+                    Vec::new()
+                } else {
+                    std::fs::read(rom_path).map_err(|e| e.to_string())?
+                };
+                let gi = GameInfo {
+                    path: cpath.as_ptr(),
+                    data: if data.is_empty() {
+                        std::ptr::null()
+                    } else {
+                        data.as_ptr() as *const c_void
+                    },
+                    size: data.len(),
+                    meta: std::ptr::null(),
+                };
+                if trace {
+                    eprintln!(
+                        "load_game: {} bytes, need_fullpath={}, path={:?}",
+                        data.len(),
+                        sysinfo.need_fullpath,
+                        rom_path
+                    );
+                }
+                unsafe { load_game(&gi) }
+            }
+            None => {
+                if trace {
+                    eprintln!("load_game: contentless (NULL)");
+                }
+                unsafe { load_game(std::ptr::null()) }
+            }
+        };
         if trace {
             eprintln!("load_game returned {ok}");
         }

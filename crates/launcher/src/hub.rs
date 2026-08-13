@@ -321,6 +321,11 @@ pub fn pages(device_name: &str, stock_ver: &str, busybox_ver: &str) -> Vec<Page>
             items: vec![],
         },
         Page {
+            title: "Ports",
+            desc: "Browse and install game ports",
+            items: vec![],
+        },
+        Page {
             title: "Updater",
             desc: "kUI over-the-air updates",
             items: vec![],
