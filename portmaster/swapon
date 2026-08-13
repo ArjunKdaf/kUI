@@ -1,0 +1,4 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# busybox applet the vendor build lacks.
+exec /mnt/SDCARD/Data/PortMaster/busybox swapon "$@"

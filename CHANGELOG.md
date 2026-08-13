@@ -30,6 +30,18 @@
   fantasy consoles, a few others) fall back to the default-style panel.
   Full art credits added at LICENSES/ARTWORK.md.
 
+- **Ports install robustly across the whole catalog.** Audited every
+  port in the catalog (archive structure, launch-script dependencies,
+  and hundreds of real test installs): downloads no longer time out on
+  big ports (stall detection + live percent instead of a wall-clock
+  cap), archives whose script name drifts from the catalog install
+  correctly anyway, and the ports environment now ships the full tool
+  set port scripts expect — xdelta3, 7-Zip, innoextract, unzip, bc,
+  swapon, python (runtime-backed), the LÖVE engine, and quiet stubs
+  for service-manager calls. Ports the device can never run (wrong
+  architecture, missing 32-bit GPU support, analog-stick or desktop-GL
+  requirements, too little RAM) are hidden from the browser entirely.
+
 - **Pak Dek installs the latest pak release.** Installing or updating
   a pak now resolves its newest GitHub release instead of the version
   pinned in the storefront, so pak updates no longer wait on a

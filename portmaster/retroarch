@@ -1,0 +1,24 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# RetroArch shim: ports that ship a libretro core launch it via
+# `retroarch -L <core> [content]` — kUI runs the core in its own
+# frontend instead. RetroArch-only flags are ignored.
+CORE=""
+CONTENT=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -L) CORE="$2"; shift 2 ;;
+    --config|--appendconfig) shift 2 ;;
+    -*) shift ;;
+    *) CONTENT="$1"; shift ;;
+  esac
+done
+if [ -z "$CORE" ]; then
+  echo "retroarch shim: no core (-L) given" >&2
+  exit 1
+fi
+if [ -n "$CONTENT" ]; then
+  exec /mnt/SDCARD/kui-frontend "$CORE" "$CONTENT"
+fi
+exec /mnt/SDCARD/kui-frontend "$CORE"

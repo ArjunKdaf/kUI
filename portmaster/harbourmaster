@@ -1,0 +1,11 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Ports call harbourmaster only to confirm a runtime is present before
+# mounting it; kUI's installer downloads runtimes at install time.
+for a in "$@"; do
+  case "$a" in
+    *.squashfs)
+      [ -f "/mnt/SDCARD/Data/PortMaster/libs/$a" ] && exit 0 || exit 1 ;;
+  esac
+done
+exit 0

@@ -61,11 +61,17 @@ impl Sd {
             if name.starts_with('.') || !e.path().is_dir() {
                 continue;
             }
-            let roms = visible_files(&e.path());
+            let (display, tag) = split_tag(&name);
+            let mut roms = visible_files(&e.path());
+            // A Ports folder holds only launch scripts; a port that fails
+            // to run can leave a stray log.txt (or other junk) beside them.
+            // Only .sh are games there, so nothing else shows on the carousel.
+            if tag == "PORTS" {
+                roms.retain(|r| r.to_lowercase().ends_with(".sh"));
+            }
             if roms.is_empty() {
                 continue;
             }
-            let (display, tag) = split_tag(&name);
             out.push(PlatformEntry {
                 folder: name,
                 display,
@@ -167,15 +173,54 @@ impl Sd {
         now_pinned
     }
 
-    /// WIPE: delete the ROM, its boxart/metadata, and purge it from
-    /// recents and pins.
+    /// WIPE: erase a game's files — the ROM, boxart/metadata, downloaded art
+    /// cache, saves, save-states (across every core), cheats, and its
+    /// recents/pins entries. Per-game config keys are cleared by the caller
+    /// (it holds the config); for ports the payload dir goes via
+    /// `ports::uninstall_script`. Play history (the playlog) is KEPT so The
+    /// Dude's lifetime progress never regresses.
     pub fn wipe_game(&self, rom_abs: &Path) {
         let _ = std::fs::remove_file(rom_abs);
-        if let (Some(dir), Some(stem)) = (rom_abs.parent(), rom_abs.file_stem()) {
-            let stem = stem.to_string_lossy();
+        let tag = self.tag_of_rom(rom_abs);
+        let stem = rom_abs.file_stem().map(|s| s.to_string_lossy().into_owned());
+
+        if let (Some(dir), Some(stem)) = (rom_abs.parent(), stem.as_deref()) {
+            // the carousel's display copy + its metadata sidecar
             let _ = std::fs::remove_file(dir.join(".media").join(format!("{stem}.png")));
             let _ = std::fs::remove_file(dir.join(".media").join(format!("{stem}.info")));
+            // the scraper's raw download cache (Artwork/<folder>/boxart/),
+            // keyed by the FULL rom filename, not the stem
+            if let (Some(folder), Some(fname)) = (
+                dir.file_name().and_then(|f| f.to_str()),
+                rom_abs.file_name().and_then(|f| f.to_str()),
+            ) {
+                let _ = std::fs::remove_file(
+                    self.root.join("Artwork").join(folder).join("boxart").join(format!("{fname}.png")),
+                );
+            }
         }
+
+        if let (Some(tag), Some(stem)) = (tag.as_deref(), stem.as_deref()) {
+            // Saves: Saves/<tag>/<stem>.*  (srm, sav, <stem>.<ext>.rtc, …)
+            remove_prefixed(&self.root.join("Saves").join(tag), stem);
+            // downloaded cheat file
+            let _ = std::fs::remove_file(
+                self.root.join("Cheats").join(tag).join(format!("{stem}.cht")),
+            );
+            // Save-states live per core in .userdata/shared/<tag>-<core>/;
+            // sweep every such dir for this game's <stem>.state*, .slot,
+            // previews and achievement blobs.
+            let shared = self.root.join(".userdata/shared");
+            if let Ok(rd) = std::fs::read_dir(&shared) {
+                let want = format!("{tag}-");
+                for e in rd.flatten() {
+                    if e.file_name().to_string_lossy().starts_with(&want) {
+                        remove_prefixed(&e.path(), stem);
+                    }
+                }
+            }
+        }
+
         if let Ok(rel) = rom_abs.strip_prefix(&self.root) {
             let rel = format!("/{}", rel.display());
             // recents
@@ -193,6 +238,10 @@ impl Sd {
             let _ = std::fs::write(self.pins_path(), pins.join("
 ") + "
 ");
+            // NOTE: play history (playlog.txt) is deliberately KEPT — it feeds
+            // The Dude's lifetime totals/level/achievements, which must not
+            // regress just because a game's files were freed. Everything else
+            // is gone; only the aggregate history survives.
         }
     }
 
@@ -298,7 +347,8 @@ impl Sd {
             .unwrap_or_default()
     }
 
-    /// Carousel art by raw key (specials: "recents", "collections", "the_dude").
+    /// Carousel art by raw key (sole special: "the_dude"; platform tiles
+    /// resolve by folder name or tag via carousel_bg/carousel_logo).
     pub fn carousel_bg_key(&self, key: &str) -> Option<PathBuf> {
         let p = self.carousel_res().join(format!("{key}.png"));
         p.is_file().then_some(p)
@@ -577,6 +627,22 @@ fn split_tag(folder: &str) -> (String, String) {
 /// Art lookup key: lowercase, spaces -> underscores.
 fn art_key(display: &str) -> String {
     display.to_lowercase().replace(' ', "_")
+}
+
+/// Delete every file in `dir` named `<stem>` or beginning `<stem>.` — the
+/// dot boundary stops a game "Mario" from also wiping "Mario Bros"'s files.
+/// A missing directory is fine (nothing to remove).
+fn remove_prefixed(dir: &Path, stem: &str) {
+    let dot = format!("{stem}.");
+    if let Ok(rd) = std::fs::read_dir(dir) {
+        for e in rd.flatten() {
+            let name = e.file_name();
+            let name = name.to_string_lossy();
+            if name == stem || name.starts_with(&dot) {
+                let _ = std::fs::remove_file(e.path());
+            }
+        }
+    }
 }
 
 fn visible_files(dir: &Path) -> Vec<String> {

@@ -277,6 +277,22 @@ enum Screen {
         scroll: usize,
         cat_sel: usize,
     },
+    PortCats {
+        cats: Vec<(String, usize)>,
+        selected: usize,
+        scroll: usize,
+        // scoped to ready-to-play ports (the Ready to Play sub-level)
+        rtr: bool,
+    },
+    Ports {
+        ports: Vec<kui_store::ports::PortEntry>,
+        title: String,
+        selected: usize,
+        scroll: usize,
+        cat_sel: usize,
+        // opened from the Ready to Play sub-level (back returns there)
+        rtr: bool,
+    },
     Updater { releases: Vec<kui_store::Release>, selected: usize },
     ScraperRun { job: scraper::Scraper, label: String, dir: Option<PathBuf>, menu_sel: usize },
     BootLogo { idx: usize },
@@ -600,20 +616,7 @@ fn run() -> i32 {
             unsafe { std::env::set_var("TZ", format!("UTC{:+}", -off)) };
         }
     }
-    // ports platforms (.sh launchers) are launchable when the ports
-    // control layer is on the card
-    let ports_ready = sd.root.join("Data/PortMaster/control.txt").is_file();
-    platforms.retain(|p| {
-        let ok = sd.emu_launch(&p.tag).is_some()
-            || resolve_core(&fe_cfg, &sd, &p.tag)
-                .map(|stem| cores_dir(&sd).join(format!("{stem}_libretro.so")).is_file())
-                .unwrap_or(false)
-            || (ports_ready && p.roms.iter().any(|r| r.ends_with(".sh")));
-        if !ok {
-            println!("hidden (no emu pak): {} ({})", p.display, p.tag);
-        }
-        ok
-    });
+    retain_launchable(&mut platforms, &sd, &fe_cfg);
 
     if platforms.is_empty() {
         eprintln!("no launchable platforms under {sd_root}/Roms");
@@ -746,36 +749,7 @@ fn run() -> i32 {
     let loader = Loader::new(2);
     let mut bg: HashMap<usize, Art> = HashMap::new();
     let mut logo: HashMap<usize, Art> = HashMap::new();
-    let n_t = tiles.len().max(1);
-    let mut order: Vec<usize> = (0..tiles.len()).collect();
-    order.sort_by_key(|&t| {
-        let d = (t as i32 - land_tile as i32).abs();
-        d.min(n_t as i32 - d)
-    });
-    for t in order {
-        let tl = &tiles[t];
-        let (bg_p, logo_p) = match tl {
-            Tile::Platform(i) => (sd.carousel_bg(&platforms[*i]), sd.carousel_logo(&platforms[*i])),
-            _ => {
-                let (key, _) = tl.art_key(&platforms);
-                (sd.carousel_bg_key(&key), sd.carousel_logo_key(&key))
-            }
-        };
-        bg.insert(t, match bg_p {
-            Some(p) => {
-                loader.request(art::key(K_BG, t), p);
-                Art::Pending
-            }
-            None => Art::Missing,
-        });
-        logo.insert(t, match logo_p {
-            Some(p) => {
-                loader.request(art::key(K_LOGO, t), p);
-                Art::Pending
-            }
-            None => Art::Missing,
-        });
-    }
+    request_carousel_art(&loader, &mut bg, &mut logo, &sd, &tiles, &platforms, land_tile);
     let mut fbg: HashMap<usize, Art> = HashMap::new();
     // Root-list background (Covers mode): global bg, else the stock wallpaper.
     {
@@ -939,6 +913,72 @@ fn run() -> i32 {
     type Fetched<T> = std::sync::Arc<std::sync::Mutex<Option<Result<T, String>>>>;
     let pak_fetch: Fetched<Vec<kui_store::Pak>> =
         std::sync::Arc::new(std::sync::Mutex::new(None));
+    let ports_fetch: Fetched<kui_store::ports::Catalog> =
+        std::sync::Arc::new(std::sync::Mutex::new(None));
+    let mut ports_all = kui_store::ports::Catalog::default();
+    // any install/remove happened: rescan the library on ports exit
+    let mut ports_dirty = false;
+    // Ports install/uninstall queue. A / uninstall enqueue a job and return
+    // instantly; one background worker drains the channel FIFO so the cursor
+    // never blocks. `port_jobs` maps zip_name -> row status ("Queued" /
+    // "Installing…" / "Removing…"); the entry is dropped when the job ends.
+    // A removed port keeps its Installed-view row (labelled "Removed") until
+    // the category is re-entered, so the list never reflows under the cursor.
+    enum PortJob {
+        Install(kui_store::ports::PortEntry, kui_store::ports::Catalog),
+        Remove(kui_store::ports::PortEntry),
+    }
+    let port_jobs: std::sync::Arc<
+        std::sync::Mutex<std::collections::HashMap<String, String>>,
+    > = std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new()));
+    let (job_tx, job_rx) = std::sync::mpsc::channel::<PortJob>();
+    {
+        let jobs = port_jobs.clone();
+        let hdr = store_msg.clone();
+        let root = sd.root.clone();
+        std::thread::spawn(move || {
+            for job in job_rx {
+                let (zip, title, installing) = match &job {
+                    PortJob::Install(p, _) => (p.zip_name.clone(), p.title.clone(), true),
+                    PortJob::Remove(p) => (p.zip_name.clone(), p.title.clone(), false),
+                };
+                if let Ok(mut m) = jobs.lock() {
+                    m.insert(
+                        zip.clone(),
+                        if installing { "Installing…" } else { "Removing…" }.into(),
+                    );
+                }
+                let res = match job {
+                    PortJob::Install(p, cat) => kui_store::ports::install_port(
+                        &root,
+                        &p,
+                        &cat,
+                        &mut |st| {
+                            if let Ok(mut m) = hdr.lock() {
+                                *m = st;
+                            }
+                        },
+                    ),
+                    PortJob::Remove(p) => kui_store::ports::remove_port(&root, &p),
+                };
+                if let Ok(mut m) = jobs.lock() {
+                    m.remove(&zip);
+                }
+                if let Ok(mut m) = hdr.lock() {
+                    *m = match res {
+                        Ok(()) => format!(
+                            "Done — {title} {}",
+                            if installing { "installed" } else { "removed" }
+                        ),
+                        Err(e) => format!(
+                            "{} failed: {e}",
+                            if installing { "Install" } else { "Remove" }
+                        ),
+                    };
+                }
+            }
+        });
+    }
     // (pak id, version) of a just-finished install: the worker resolves the
     // LATEST release, which can differ from the version pinned in the list.
     let pak_installed: std::sync::Arc<std::sync::Mutex<Option<(String, String)>>> =
@@ -1454,6 +1494,26 @@ fn run() -> i32 {
                             cats: Vec::new(),
                             selected: 0,
                             scroll: 0,
+                        });
+                        v_rep.clear();
+                    } else if hub_pages[*selected].title == "Ports" {
+                        if let Ok(mut g) = ports_fetch.lock() {
+                            *g = None;
+                        }
+                        let pf2 = ports_fetch.clone();
+                        let root = sd.root.clone();
+                        std::thread::spawn(move || {
+                            let res = kui_store::ports::catalog(&root);
+                            if let Ok(mut g) = pf2.lock() {
+                                *g = Some(res);
+                            }
+                        });
+                        ports_all = kui_store::ports::Catalog::default();
+                        next_screen = Some(Screen::PortCats {
+                            cats: Vec::new(),
+                            selected: 0,
+                            scroll: 0,
+                            rtr: false,
                         });
                         v_rep.clear();
                     } else if hub_pages[*selected].title == "Updater" {
@@ -2587,6 +2647,197 @@ fn run() -> i32 {
                         cats: cats2,
                         selected: sel2,
                         scroll: sel2.saturating_sub(visible_rows() - 1),
+                    });
+                    v_rep.clear();
+                }
+            }
+            Screen::PortCats { cats, selected, scroll, rtr } => {
+                let rtr = *rtr;
+                if cats.is_empty()
+                    && let Ok(mut g) = ports_fetch.lock()
+                    && let Some(res) = g.take()
+                {
+                    match res {
+                        Ok(c) => {
+                            ports_all = c;
+                            *cats = port_categories(&ports_all, &sd.root, rtr);
+                        }
+                        Err(e) => {
+                            if let Ok(mut m) = store_msg.lock() {
+                                *m = format!("Fetch failed: {e}");
+                            }
+                        }
+                    }
+                }
+                if cats.is_empty() && !ports_all.ports.is_empty() {
+                    *cats = port_categories(&ports_all, &sd.root, rtr);
+                }
+                if v_step != 0 && !cats.is_empty() {
+                    *selected = wrap(*selected, v_step, cats.len());
+                    let visible = 10usize;
+                    if *selected < *scroll {
+                        *scroll = *selected;
+                    }
+                    if *selected >= *scroll + visible {
+                        *scroll = *selected + 1 - visible;
+                    }
+                }
+                if confirm && let Some((cat, _)) = cats.get(*selected) {
+                    // top-level "Ready to Play" opens its own genre sub-level
+                    if !rtr && cat == "Ready to Play" {
+                        next_screen = Some(Screen::PortCats {
+                            cats: port_categories(&ports_all, &sd.root, true),
+                            selected: 0,
+                            scroll: 0,
+                            rtr: true,
+                        });
+                        v_rep.clear();
+                    } else {
+                        // within a scope, "All …" = the whole pool, a genre
+                        // name = that genre; the scope (rtr) narrows the pool
+                        let key = cat.to_lowercase();
+                        let all_here = cat == "All Ports" || cat == "All Ready to Play";
+                        let filtered: Vec<kui_store::ports::PortEntry> = ports_all
+                            .ports
+                            .iter()
+                            .filter(|p| !rtr || p.rtr)
+                            .filter(|p| {
+                                if cat == "Installed" {
+                                    kui_store::ports::installed(&sd.root, p)
+                                } else if all_here {
+                                    true
+                                } else {
+                                    p.genres.iter().any(|g| *g == key)
+                                }
+                            })
+                            .cloned()
+                            .collect();
+                        next_screen = Some(Screen::Ports {
+                            ports: filtered,
+                            title: cat.clone(),
+                            selected: 0,
+                            scroll: 0,
+                            cat_sel: *selected,
+                            rtr,
+                        });
+                        v_rep.clear();
+                    }
+                }
+                if back {
+                    if let Ok(mut m) = store_msg.lock() {
+                        m.clear();
+                    }
+                    if rtr {
+                        // leaving the Ready to Play sub-level: back to the top
+                        next_screen = Some(Screen::PortCats {
+                            cats: port_categories(&ports_all, &sd.root, false),
+                            selected: 0,
+                            scroll: 0,
+                            rtr: false,
+                        });
+                        v_rep.clear();
+                    } else {
+                        if ports_dirty {
+                            // library changed: rescan platforms + rebuild the
+                            // carousel so new ports appear without a reboot
+                            ports_dirty = false;
+                            platforms = sd.scan_platforms();
+                            retain_launchable(&mut platforms, &sd, &cfg);
+                            let (t2, d2) = build_tiles(platforms.len());
+                            tiles = t2;
+                            let _ = d2;
+                            tile = tile.min(tiles.len().saturating_sub(1));
+                            bg.clear();
+                            logo.clear();
+                            fbg.retain(|k, _| *k == ROOT_FBG);
+                            boxart.clear();
+                            infos.clear();
+                            remember.clear();
+                            request_carousel_art(
+                                &loader, &mut bg, &mut logo, &sd, &tiles, &platforms, tile,
+                            );
+                        }
+                        next_screen = Some(Screen::HubIndex {
+                            selected: hub_pos(&hub_pages, "Ports"),
+                        });
+                        v_rep.clear();
+                    }
+                }
+            }
+            Screen::Ports { ports, title: _, selected, scroll, cat_sel, rtr } => {
+                if v_step != 0 && !ports.is_empty() {
+                    *selected = wrap(*selected, v_step, ports.len());
+                    let visible = pakdek_visible_rows();
+                    if *selected < *scroll {
+                        *scroll = *selected;
+                    }
+                    if *selected >= *scroll + visible {
+                        *scroll = *selected + 1 - visible;
+                    }
+                }
+                if h_step != 0 && !ports.is_empty() {
+                    let visible = pakdek_visible_rows();
+                    let target =
+                        *selected as i64 + h_step as i64 * visible as i64;
+                    *selected =
+                        target.clamp(0, ports.len() as i64 - 1) as usize;
+                    if *selected < *scroll {
+                        *scroll = *selected;
+                    }
+                    if *selected >= *scroll + visible {
+                        *scroll = *selected + 1 - visible;
+                    }
+                }
+                // A queues an install for an available port; the uninstall
+                // button queues a removal for an installed one. Both return at
+                // once — one background worker drains the queue FIFO — so you
+                // can select many in a row. An already-queued port is skipped
+                // so a double-press can't double-enqueue.
+                if confirm
+                    && let Some(p) = ports.get(*selected)
+                    && !kui_store::ports::installed(&sd.root, p)
+                    && port_jobs
+                        .lock()
+                        .map(|mut m| {
+                            let dup = m.contains_key(&p.zip_name);
+                            if !dup {
+                                m.insert(p.zip_name.clone(), "Queued".into());
+                            }
+                            !dup
+                        })
+                        .unwrap_or(false)
+                {
+                    let _ = job_tx.send(PortJob::Install(p.clone(), ports_all.clone()));
+                    ports_dirty = true;
+                }
+                if wipe_btn
+                    && let Some(p) = ports.get(*selected)
+                    && kui_store::ports::installed(&sd.root, p)
+                    && port_jobs
+                        .lock()
+                        .map(|mut m| {
+                            let dup = m.contains_key(&p.zip_name);
+                            if !dup {
+                                m.insert(p.zip_name.clone(), "Queued".into());
+                            }
+                            !dup
+                        })
+                        .unwrap_or(false)
+                {
+                    let _ = job_tx.send(PortJob::Remove(p.clone()));
+                    ports_dirty = true;
+                }
+                if back {
+                    if let Ok(mut m) = store_msg.lock() {
+                        m.clear();
+                    }
+                    let cats2 = port_categories(&ports_all, &sd.root, *rtr);
+                    let sel2 = (*cat_sel).min(cats2.len().saturating_sub(1));
+                    next_screen = Some(Screen::PortCats {
+                        cats: cats2,
+                        selected: sel2,
+                        scroll: sel2.saturating_sub(9),
+                        rtr: *rtr,
                     });
                     v_rep.clear();
                 }
@@ -3875,7 +4126,25 @@ fn run() -> i32 {
                                 && now - at < std::time::Duration::from_secs(2) =>
                         {
                             let rom = rom.clone();
+                            // Wipe inside Ports is a full uninstall: reuse the
+                            // ports removal so the payload dir under Data/ports
+                            // is cleared too (wipe_game only knows the script +
+                            // box art, and would strand hundreds of MB). Then
+                            // wipe_game still purges recents/pins/info as usual.
+                            if sd.tag_of_rom(&rom).as_deref() == Some("PORTS") {
+                                let _ = kui_store::ports::uninstall_script(&sd.root, &rom);
+                            }
                             sd.wipe_game(&rom);
+                            // last trace: per-game config keys (controls,
+                            // cheats, shader, scaling, shortcuts…). Trailing
+                            // dot so "Mario" can't match "Mario Bros" keys.
+                            if let (Some(tag), Some(stem)) = (
+                                sd.tag_of_rom(&rom),
+                                rom.file_stem().map(|s| s.to_string_lossy().into_owned()),
+                            ) {
+                                cfg.remove_prefix(&format!("game.{tag}.{stem}."));
+                                let _ = cfg.save();
+                            }
                             rows.remove(*selected);
                             if *selected >= rows.len() && *selected > 0 {
                                 *selected -= 1;
@@ -4201,7 +4470,7 @@ fn run() -> i32 {
                         let inst = kui_store::installed_version(p);
                         let value = match &inst {
                             Some(v3) if *v3 != p.version => "UPDATE".to_string(),
-                            Some(_) => "installed".to_string(),
+                            Some(_) => "Installed".to_string(),
                             None => p.version.clone(),
                         };
                         let y = top + row as f32 * row_h2;
@@ -4230,6 +4499,118 @@ fn run() -> i32 {
                                 f.fit(&v.gl, &p.name, LIST_FONT, vx - 56.0 - 24.0);
                             f.draw(&r, &v.gl, &shown, 56.0, text_y, LIST_FONT, theme.c4);
                             let vc = if value == "UPDATE" { theme.c2 } else { theme.c6 };
+                            f.draw(&r, &v.gl, &value, vx, text_y, LIST_FONT, vc);
+                            let s2 = f.fit(&v.gl, &sub, 18, sw as f32 - 112.0);
+                            f.draw(
+                                &r, &v.gl, &s2, 56.0,
+                                y + PILL_H as f32 + 2.0, 18, theme.c6,
+                            );
+                        }
+                    }
+                }
+            }
+            Screen::PortCats { cats, selected, scroll, rtr } => {
+                if let Some(f) = font.as_mut() {
+                    let head = store_msg.lock().map(|m| m.clone()).unwrap_or_default();
+                    let head = if !head.is_empty() {
+                        head
+                    } else if cats.is_empty() {
+                        "Fetching ports...".to_string()
+                    } else if *rtr {
+                        "Ready to Play".to_string()
+                    } else {
+                        format!("Ports — {} available", ports_all.ports.len())
+                    };
+                    f.draw(&r, &v.gl, &head, 32.0, 20.0, 22, theme.c6);
+                    let top = 56.0;
+                    let visible = 10usize;
+                    for row in 0..visible.min(cats.len()) {
+                        let idx = scroll + row;
+                        if idx >= cats.len() {
+                            break;
+                        }
+                        let (name, count) = &cats[idx];
+                        let value = format!("{count} ports");
+                        let y = top + row as f32 * ROW_H;
+                        let lh = f.line_height(LIST_FONT);
+                        let pill_y = y + (ROW_H - PILL_H as f32) / 2.0;
+                        let text_y = pill_y + (PILL_H as f32 - lh) / 2.0;
+                        let vw = f.measure(&v.gl, &value, LIST_FONT);
+                        let vx = sw as f32 - 48.0 - vw;
+                        if idx == *selected {
+                            let sel_c = theme.c1;
+                            f.draw(&r, &v.gl, name, 56.0, text_y, LIST_FONT, sel_c);
+                            f.draw(&r, &v.gl, &value, vx, text_y, LIST_FONT, sel_c);
+                        } else {
+                            f.draw(&r, &v.gl, name, 56.0, text_y, LIST_FONT, theme.c4);
+                            f.draw(&r, &v.gl, &value, vx, text_y, LIST_FONT, theme.c6);
+                        }
+                    }
+                }
+            }
+            Screen::Ports { ports, title, selected, scroll, .. } => {
+                if let Some(f) = font.as_mut() {
+                    let head = store_msg.lock().map(|m| m.clone()).unwrap_or_default();
+                    let head = if !head.is_empty() { head } else { title.clone() };
+                    f.draw(&r, &v.gl, &head, 32.0, 20.0, 22, theme.c6);
+                    let top = 56.0;
+                    let row_h2 = 82.0;
+                    let visible = pakdek_visible_rows();
+                    for row in 0..visible.min(ports.len()) {
+                        let idx = scroll + row;
+                        if idx >= ports.len() {
+                            break;
+                        }
+                        let p = &ports[idx];
+                        let job = port_jobs
+                            .lock()
+                            .ok()
+                            .and_then(|m| m.get(&p.zip_name).cloned());
+                        let active = job.is_some();
+                        let inst = kui_store::ports::installed(&sd.root, p);
+                        let value = if let Some(st) = job {
+                            st
+                        } else if inst {
+                            "Installed".to_string()
+                        } else if title == "Installed" {
+                            // was installed when this list was built; a queued
+                            // removal finished. Keep the row so the list never
+                            // reflows under the cursor — it only leaves on the
+                            // next entry to the Installed category.
+                            "Removed".to_string()
+                        } else if p.size >= 1024 * 1024 {
+                            format!("{} MB", p.size / (1024 * 1024))
+                        } else {
+                            format!("{} KB", (p.size / 1024).max(1))
+                        };
+                        let y = top + row as f32 * row_h2;
+                        let lh = f.line_height(LIST_FONT);
+                        let pill_y = y;
+                        let text_y = y + (PILL_H as f32 - lh) / 2.0;
+                        let vw = f.measure(&v.gl, &value, LIST_FONT);
+                        let vx = sw as f32 - 48.0 - vw;
+                        let mut sub = p.desc.clone();
+                        if !p.rtr {
+                            sub = format!("NEEDS GAME FILES — {sub}");
+                        }
+                        if idx == *selected {
+                            let sel_c = theme.c1;
+                            draw_roll(
+                                f, &r, &v.gl, &mut roll_state, "ports", &p.title, 56.0,
+                                text_y, pill_y, PILL_H as f32, LIST_FONT, sel_c,
+                                vx - 56.0 - 24.0, now,
+                            );
+                            f.draw(&r, &v.gl, &value, vx, text_y, LIST_FONT, sel_c);
+                            draw_roll(
+                                f, &r, &v.gl, &mut roll_state, "portdesc", &sub, 56.0,
+                                y + PILL_H as f32 + 2.0, y + PILL_H as f32, 24.0, 18,
+                                theme.c6, sw as f32 - 112.0, now,
+                            );
+                        } else {
+                            let shown =
+                                f.fit(&v.gl, &p.title, LIST_FONT, vx - 56.0 - 24.0);
+                            f.draw(&r, &v.gl, &shown, 56.0, text_y, LIST_FONT, theme.c4);
+                            let vc = if inst || active { theme.c2 } else { theme.c6 };
                             f.draw(&r, &v.gl, &value, vx, text_y, LIST_FONT, vc);
                             let s2 = f.fit(&v.gl, &sub, 18, sw as f32 - 112.0);
                             f.draw(
@@ -4362,10 +4743,15 @@ fn run() -> i32 {
                 if let Some(f) = font.as_mut() {
                     let p = job.progress();
                     f.draw(&r, &v.gl, label, 32.0, 20.0, 22, theme.c6);
-                    let phase = if let Some(e) = &p.error {
-                        format!("Error: {e}")
+                    let (phase, col) = if let Some(e) = &p.error {
+                        (format!("Error: {e}"), theme.c2)
+                    } else if p.finished {
+                        // completed: the last progress string becomes the
+                        // result summary, prefixed so it never reads as a
+                        // frozen counter
+                        (format!("Done — {}", p.phase), theme.c1)
                     } else {
-                        p.phase.clone()
+                        (p.phase.clone(), theme.c4)
                     };
                     let pw2 = f.measure(&v.gl, &phase, 26);
                     f.draw(
@@ -4375,8 +4761,13 @@ fn run() -> i32 {
                         (sw as f32 - pw2) / 2.0,
                         sh as f32 * 0.4,
                         26,
-                        if p.error.is_some() { theme.c2 } else { theme.c4 },
+                        col,
                     );
+                    if p.finished && p.error.is_none() {
+                        let hint = "Press B to return";
+                        let hw = f.measure(&v.gl, hint, 18);
+                        f.draw(&r, &v.gl, hint, (sw as f32 - hw) / 2.0, sh as f32 * 0.4 + 40.0, 18, theme.c6);
+                    }
                     if p.total > 0 && !p.finished {
                         let bw = sw as f32 * 0.6;
                         let bx = (sw as f32 - bw) / 2.0;
@@ -5923,9 +6314,26 @@ fn run() -> i32 {
                         _ => &[("A", "Install"), ("B", "Back")],
                     }
                 }
+                Screen::PortCats { .. } => &[("A", "Open"), ("B", "Back")],
+                Screen::Ports { ports, selected, .. } => {
+                    match ports
+                        .get(*selected)
+                        .map(|p| kui_store::ports::installed(&sd.root, p))
+                    {
+                        Some(true) => &[("Y", "Remove"), ("B", "Back")],
+                        Some(false) => &[("A", "Install"), ("B", "Back")],
+                        None => &[("B", "Back")],
+                    }
+                }
                 Screen::Updater { .. } => &[("A", "Install"), ("B", "Back")],
                 Screen::ScraperMenu { .. } => &[("A", "Run"), ("B", "Back")],
-                Screen::ScraperRun { .. } => &[("B", "Cancel")],
+                Screen::ScraperRun { job, .. } => {
+                    if job.progress().finished {
+                        &[("B", "Back")]
+                    } else {
+                        &[("B", "Cancel")]
+                    }
+                }
                 Screen::CoreOpts { .. } => {
                     &[("</>", "Change"), ("X", "Clear"), ("A", "Bind"), ("B", "Back")]
                 }
@@ -6432,11 +6840,21 @@ fn launch_rom(sd: &Sd, cfg: &kui_config::Config, rom: &PathBuf, label: &str, on_
         if !sd.root.join("Data/PortMaster/control.txt").is_file() {
             return LaunchResult::Fail("Ports support not installed".into());
         }
-        format!(
-            "XDG_DATA_HOME=/mnt/SDCARD/Data HOME=/mnt/SDCARD/Data/home {} {}",
-            shell_quote("/mnt/SDCARD/Data/PortMaster/bash"),
-            shell_quote(&rom.display().to_string())
-        )
+        // Run the port through kui_portrun: it launches the .sh in its own
+        // session and watches the pad for MENU+START, SIGKILLing the port
+        // group on the chord — a reliable quit even for ports that never
+        // start gptokeyb (native-input games) or whose gptokeyb kill
+        // misfires. Fall back to a bare bash launch if the runner isn't
+        // deployed yet, so ports still launch on older cards.
+        let env = "XDG_DATA_HOME=/mnt/SDCARD/Data HOME=/mnt/SDCARD/Data/home";
+        let bash = shell_quote("/mnt/SDCARD/Data/PortMaster/bash");
+        let port = shell_quote(&rom.display().to_string());
+        let runner = sd.root.join("Data/PortMaster/kui_portrun");
+        if runner.is_file() {
+            format!("{env} {} {bash} {port}", shell_quote(&runner.display().to_string()))
+        } else {
+            format!("{env} {bash} {port}")
+        }
     } else if let Some(core) = native_core {
         format!(
             "{} {} {}",
@@ -6754,6 +7172,137 @@ fn files_reopen(dirs: &[PathBuf; 2], active: usize) -> Screen {
         menu: None,
         armed_delete: false,
     }
+}
+
+/// Queue every carousel panel + logo for decode, radiating out from the
+/// landing tile so the visible window dresses first.
+fn request_carousel_art(
+    loader: &Loader,
+    bg: &mut HashMap<usize, Art>,
+    logo: &mut HashMap<usize, Art>,
+    sd: &Sd,
+    tiles: &[Tile],
+    platforms: &[sd::PlatformEntry],
+    land_tile: usize,
+) {
+    let n_t = tiles.len();
+    let mut order: Vec<usize> = (0..n_t).collect();
+    order.sort_by_key(|&t| {
+        let d = (t as i32 - land_tile as i32).abs();
+        d.min(n_t as i32 - d)
+    });
+    for t in order {
+        let tl = &tiles[t];
+        let (bg_p, logo_p) = match tl {
+            Tile::Platform(i) => (sd.carousel_bg(&platforms[*i]), sd.carousel_logo(&platforms[*i])),
+            _ => {
+                let (key, _) = tl.art_key(platforms);
+                (sd.carousel_bg_key(&key), sd.carousel_logo_key(&key))
+            }
+        };
+        bg.insert(t, match bg_p {
+            Some(p) => {
+                loader.request(art::key(K_BG, t), p);
+                Art::Pending
+            }
+            None => Art::Missing,
+        });
+        logo.insert(t, match logo_p {
+            Some(p) => {
+                loader.request(art::key(K_LOGO, t), p);
+                Art::Pending
+            }
+            None => Art::Missing,
+        });
+    }
+}
+
+/// Ports category index: Installed, All Ports, then genres by size.
+/// Category index for the ports browser. `rtr` scopes it to ready-to-play
+/// ports: the top level lists Installed / All Ports / Ready to Play then
+/// every genre; the Ready-to-Play sub-level lists the same genres over
+/// the ready-to-play ports only.
+fn port_categories(
+    cat: &kui_store::ports::Catalog,
+    sd_root: &Path,
+    rtr: bool,
+) -> Vec<(String, usize)> {
+    let pool: Vec<&kui_store::ports::PortEntry> =
+        cat.ports.iter().filter(|p| !rtr || p.rtr).collect();
+    let mut out = Vec::new();
+    if rtr {
+        if !pool.is_empty() {
+            out.push(("All Ready to Play".to_string(), pool.len()));
+        }
+    } else {
+        let inst = pool
+            .iter()
+            .filter(|p| kui_store::ports::installed(sd_root, p))
+            .count();
+        if inst > 0 {
+            out.push(("Installed".to_string(), inst));
+        }
+        if !pool.is_empty() {
+            out.push(("All Ports".to_string(), pool.len()));
+            let n = pool.iter().filter(|p| p.rtr).count();
+            if n > 0 {
+                out.push(("Ready to Play".to_string(), n));
+            }
+        }
+    }
+    let mut names: Vec<String> =
+        pool.iter().flat_map(|p| p.genres.clone()).collect();
+    names.sort();
+    names.dedup();
+    let mut genres: Vec<(String, usize)> = names
+        .into_iter()
+        .map(|g| {
+            let n = pool.iter().filter(|p| p.genres.contains(&g)).count();
+            (genre_label(&g), n)
+        })
+        .collect();
+    genres.sort_by(|a, b| a.0.cmp(&b.0));
+    out.extend(genres);
+    out
+}
+
+fn genre_label(g: &str) -> String {
+    match g {
+        "fps" => "FPS".to_string(),
+        "rpg" => "RPG".to_string(),
+        _ => g
+            .split(' ')
+            .map(|w| {
+                let mut c = w.chars();
+                match c.next() {
+                    Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+                    None => String::new(),
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" "),
+    }
+}
+
+/// Drop platforms nothing can launch: no native core, no emu pak, and
+/// (for .sh ports platforms) no ports control layer on the card.
+fn retain_launchable(
+    platforms: &mut Vec<sd::PlatformEntry>,
+    sd: &Sd,
+    cfg: &kui_config::Config,
+) {
+    let ports_ready = sd.root.join("Data/PortMaster/control.txt").is_file();
+    platforms.retain(|p| {
+        let ok = sd.emu_launch(&p.tag).is_some()
+            || resolve_core(cfg, sd, &p.tag)
+                .map(|stem| cores_dir(sd).join(format!("{stem}_libretro.so")).is_file())
+                .unwrap_or(false)
+            || (ports_ready && p.roms.iter().any(|r| r.ends_with(".sh")));
+        if !ok {
+            println!("hidden (no emu pak): {} ({})", p.display, p.tag);
+        }
+        ok
+    });
 }
 
 fn hub_pos(pages: &[hub::Page], title: &str) -> usize {
@@ -7323,7 +7872,7 @@ enum HubRow {
 
 const HUB_GROUPS: [(&str, &[&str]); 4] = [
     ("LOOK", &["Appearance", "Themes", "Boot Logo", "LED Control", "Scraper"]),
-    ("PLAY", &["In-Game", "Core Options", "FN Switch", "Game Tracker"]),
+    ("PLAY", &["In-Game", "Core Options", "FN Switch", "Game Tracker", "Ports"]),
     (
         "DEVICE",
         &["Display", "Connectivity", "Input", "Files", "Date & Time", "Battery", "System"],

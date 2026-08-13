@@ -1,0 +1,10 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# GL-over-GLES environment for ports built against desktop OpenGL:
+# gl4es translates to the vendor GLES2 blobs. Sourced by GL ports.
+export LD_LIBRARY_PATH="/mnt/SDCARD/Data/PortMaster/gl4es${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export LIBGL_ES=2
+export LIBGL_GL=21
+# render at the game's size, let gl4es upscale to the panel
+export LIBGL_FB=1

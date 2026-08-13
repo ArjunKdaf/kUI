@@ -1,0 +1,15 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Some port scripts run python directly (not via a runtime): serve it
+# from the python_3.11 runtime squashfs, mounted on demand.
+PM=/mnt/SDCARD/Data/PortMaster
+SQ="$PM/libs/python_3.11.squashfs"
+MNT=/tmp/kui-python
+if [ ! -f "$SQ" ]; then
+  echo "python3: runtime python_3.11.squashfs not installed" >&2
+  exit 127
+fi
+mkdir -p "$MNT"
+grep -q " $MNT " /proc/mounts || mount "$SQ" "$MNT" || exit 127
+export PYTHONHOME="$MNT"
+exec "$MNT/bin/python3" "$@"

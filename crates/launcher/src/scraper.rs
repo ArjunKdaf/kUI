@@ -348,8 +348,12 @@ fn fetch_artwork(ctx: &Ctx, platform_name: &str, tag: &str, art_type: &str) -> R
         }
     }
 
-    let art_cache = ctx.artwork_root().join(platform_name).join(art_type);
-    fs::create_dir_all(&art_cache).map_err(|e| format!("mkdir {}: {e}", art_cache.display()))?;
+    // The .media image is both the cache and what the carousel shows — one
+    // copy, no separate Artwork/<platform>/boxart mirror. An image already
+    // in .media is the "already downloaded, skip" check, so re-scraping
+    // stays cheap without duplicating every file.
+    let media_dir = rom_dir.join(".media");
+    fs::create_dir_all(&media_dir).map_err(|e| format!("mkdir {}: {e}", media_dir.display()))?;
 
     let Ok(text) = fs::read_to_string(&match_file) else {
         ctx.set_phase("No matches found");
@@ -364,37 +368,25 @@ fn fetch_artwork(ctx: &Ctx, platform_name: &str, tag: &str, art_type: &str) -> R
     let total = entries.len();
     ctx.set_counts(0, total);
 
-    // Download each image into the Artwork cache (skip ones already there).
+    // Download each image straight into .media, named after the ROM base.
     let mut count = 0usize;
     for (rom_name, url) in &entries {
         ctx.check_cancel()?;
-        let img_path = art_cache.join(format!("{rom_name}.png"));
+        let base = match rom_name.rfind('.') {
+            Some(dot) => &rom_name[..dot],
+            None => rom_name,
+        };
+        let dst = media_dir.join(format!("{base}.png"));
         count += 1;
         ctx.set_counts(count, total);
-        if img_path.exists() {
+        if dst.exists() {
             continue;
         }
         if count.is_multiple_of(5) {
             ctx.set_phase(format!("Downloading {count}/{total}..."));
         }
         // Individual failures are non-fatal, as in the C.
-        let _ = curl_get(url, &img_path);
-    }
-
-    // Copy into the platform's .media folder, named after the ROM base name.
-    ctx.set_phase("Copying to .media...");
-    let media_dir = rom_dir.join(".media");
-    fs::create_dir_all(&media_dir).map_err(|e| format!("mkdir {}: {e}", media_dir.display()))?;
-    for (rom_name, _) in &entries {
-        let base = match rom_name.rfind('.') {
-            Some(dot) => &rom_name[..dot],
-            None => rom_name,
-        };
-        let src = art_cache.join(format!("{rom_name}.png"));
-        let dst = media_dir.join(format!("{base}.png"));
-        if src.exists() {
-            let _ = fs::copy(&src, &dst);
-        }
+        let _ = curl_get(url, &dst);
     }
 
     ctx.set_phase(format!("Done! {count} images"));

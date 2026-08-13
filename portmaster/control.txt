@@ -20,9 +20,12 @@ export ESUDOKILL="-1"
 export ESUDOKILL2="-1"
 
 # The vendor SDL2 (and friends) live outside the default loader path;
-# gptokeyb and any port without bundled libs need them findable. Ports
-# prepend their own lib dirs, so this stays the fallback.
-export LD_LIBRARY_PATH="/usr/trimui/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+# gptokeyb and any port without bundled libs need them findable. Our
+# syslibs dir carries common libraries the vendor userland lacks or
+# ships too old (libpng16, SDL2_mixer 2.8, ...) — syslibs FIRST so a
+# lib we deliberately provide beats the vendor's stale copy. Ports
+# still prepend their own lib dirs at launch.
+export LD_LIBRARY_PATH="/mnt/SDCARD/Data/PortMaster/syslibs:/usr/trimui/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
 # The control folder carries tools the busybox userland lacks (bash,
 # pkill); ports and gptokeyb find them here.
@@ -60,10 +63,21 @@ source "$controlfolder/funcs.txt"
 # gptokeyb injects keyboard/mouse events through uinput.
 chmod 666 /dev/uinput 2> /dev/null
 
+# Scaling shim: the vendor SDL video backend ignores requested
+# fullscreen sizes; the shim applies SDL logical scaling so small-res
+# games fill the panel. Harmless in non-SDL processes.
+export LD_PRELOAD="$controlfolder/kui_sdlscale.so${LD_PRELOAD:+:$LD_PRELOAD}"
+
 # Quit combo = MENU+START (kUI's own save+quit pattern). MENU is the
 # pad's guide button; without this, SELECT+START would also quit —
 # and SELECT is a live in-game key in many ports.
 export HOTKEY="guide"
 
 export GPTOKEYB2="env LD_PRELOAD=$controlfolder/libinterpose.aarch64.so $controlfolder/gptokeyb2 $ESUDOKILL2"
+# gptokeyb v1 is the default. v2 was tried for mouse ports (it emits a
+# separate pointer device where v1 folds mouse into a keyboard-classed
+# device) but SDL games still didn't pick up the click/motion on this
+# hardware — mouse is unplayable here regardless, so those ports are
+# blocklisted rather than chased. Keep v1: it's what the working
+# keyboard ports were validated on.
 export GPTOKEYB="$controlfolder/gptokeyb.wrap $ESUDOKILL"
