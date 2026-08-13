@@ -322,7 +322,7 @@ pub fn pages(device_name: &str, stock_ver: &str, busybox_ver: &str) -> Vec<Page>
         },
         Page {
             title: "Ports",
-            desc: "Browse and install game ports",
+            desc: "Browse and download game ports",
             items: vec![],
         },
         Page {
