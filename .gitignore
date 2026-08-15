@@ -3,20 +3,14 @@
 !/.cargo/config.toml
 /.rustup
 /toolchain
-/backups
 dist/
-/TODO.md
-# internal design/research notes - never published
-/docs
 # prebuilt third-party core(s) bundled into the update payload; pulled
 # from the curated card, not built here (see scripts/package.sh)
 /vendor
-# crash evidence pulled off the device (crash-grab.sh) - never published
-/crash-reports
-# local-only dev helper: fills the card with ports for playtesting - never published
-/crates/store/src/bin/portfill.rs
+
+# local NixOS dev shell — Arjun's build env, not part of kUI itself
+/shell.nix
 
 # build artifacts
-gastest.o
 *.o
 /portmaster/kui_portrun
