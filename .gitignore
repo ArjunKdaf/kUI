@@ -13,6 +13,8 @@ dist/
 /vendor
 # crash evidence pulled off the device (crash-grab.sh) - never published
 /crash-reports
+# local-only dev helper: fills the card with ports for playtesting - never published
+/crates/store/src/bin/portfill.rs
 
 # build artifacts
 gastest.o
