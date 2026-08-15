@@ -28,7 +28,7 @@
 ---
 
 A custom operating system for the **TrimUI Brick / Hammer**, written from
-scratch. No inherited code — one launcher, one libretro game
+scratch. One launcher, one libretro game
 frontend, one small system daemon, all built for exactly this device.
 Faster and lighter than what came before, and fully self-sufficient: kUI
 runs the whole show, from the boot chain to the pixels.

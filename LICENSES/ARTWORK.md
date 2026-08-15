@@ -20,3 +20,13 @@ Credits, per upstream:
 | noir panel variant | tenlevels and f8less |
 | outline panel variant | Joppa Fallston |
 | nintendont panel variant | theUnBurn |
+
+## Collection panels
+
+kUI's collection background panels (`.system/res/collections/`) are
+cropped and reframed from in-game screenshots to fit the carousel's
+parallelogram. The framing and composition are kUI's; the underlying
+game imagery remains the property of its respective copyright holders.
+They are shipped **non-commercially**, with no affiliation with or
+endorsement by those rights holders. This restriction is on the art
+only — kUI's own code is free software (GPL-3.0).

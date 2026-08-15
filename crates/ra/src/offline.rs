@@ -570,40 +570,40 @@ mod tests {
     fn cache_key_parsing() {
         // The session bootstrap set is keyed as documented.
         assert_eq!(
-            cache_key("r=login2&u=Arjun&p=hunter2"),
-            Some("login2_Arjun.json".to_string())
+            cache_key("r=login2&u=testuser&p=testpwd"),
+            Some("login2_testuser.json".to_string())
         );
         assert_eq!(
-            cache_key("r=login2&u=Arjun&t=SOMETOKEN"),
-            Some("login2_Arjun.json".to_string())
+            cache_key("r=login2&u=testuser&t=SOMETOKEN"),
+            Some("login2_testuser.json".to_string())
         );
         assert_eq!(
             cache_key("r=gameid&m=6a2305a2b6675a97ff792709be1ca857"),
             Some("gameid_6a2305a2b6675a97ff792709be1ca857.json".to_string())
         );
         assert_eq!(
-            cache_key("r=patch&u=Arjun&t=TOK&g=14402"),
+            cache_key("r=patch&u=testuser&t=TOK&g=14402"),
             Some("patch_14402.json".to_string())
         );
         assert_eq!(
-            cache_key("r=startsession&u=Arjun&t=TOK&g=14402&h=0&m=abc&l=12.3.0"),
+            cache_key("r=startsession&u=testuser&t=TOK&g=14402&h=0&m=abc&l=12.3.0"),
             Some("startsession_14402.json".to_string())
         );
         // achievementsets keys by g when present, else by m (the by-hash
         // load rc_client actually performs).
         assert_eq!(
-            cache_key("r=achievementsets&u=Arjun&t=TOK&m=6a2305a2b6675a97ff792709be1ca857"),
+            cache_key("r=achievementsets&u=testuser&t=TOK&m=6a2305a2b6675a97ff792709be1ca857"),
             Some("achievementsets_6a2305a2b6675a97ff792709be1ca857.json".to_string())
         );
         assert_eq!(
-            cache_key("r=achievementsets&u=Arjun&t=TOK&g=14402"),
+            cache_key("r=achievementsets&u=testuser&t=TOK&g=14402"),
             Some("achievementsets_14402.json".to_string())
         );
 
         // Never cached.
-        assert_eq!(cache_key("r=awardachievement&u=Arjun&t=TOK&a=1&h=0&v=sig"), None);
-        assert_eq!(cache_key("r=ping&u=Arjun&t=TOK&g=14402"), None);
-        assert_eq!(cache_key("r=submitlbentry&u=Arjun&t=TOK"), None);
+        assert_eq!(cache_key("r=awardachievement&u=testuser&t=TOK&a=1&h=0&v=sig"), None);
+        assert_eq!(cache_key("r=ping&u=testuser&t=TOK&g=14402"), None);
+        assert_eq!(cache_key("r=submitlbentry&u=testuser&t=TOK"), None);
 
         // Missing pieces / garbage.
         assert_eq!(cache_key(""), None);

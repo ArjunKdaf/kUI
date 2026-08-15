@@ -55,7 +55,5 @@ source for any shipped core build is available on request.
 
 ## Non-commercial cores
 
-fbneo, opera, picodrive, and snes9x are licensed for non-commercial use
-only. kUI is free software and is distributed at no charge, which these
-licenses permit. kUI releases containing these cores (or the Artbook
-Next artwork, CC-BY-NC-SA — see README.md) must never be sold.
+fbneo, opera, picodrive, and snes9x are licensed for non-commercial
+use only.
