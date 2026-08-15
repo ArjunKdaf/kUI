@@ -87,7 +87,7 @@ fn eq_nocase_wildcard(test: &str, pat: &str) -> bool {
     for c1 in test.bytes() {
         match p.next() {
             Some(c2) => {
-                if c1.to_ascii_lowercase() != c2.to_ascii_lowercase() && c2 != b'?' {
+                if !c1.eq_ignore_ascii_case(&c2) && c2 != b'?' {
                     return c2 == b'*';
                 }
             }

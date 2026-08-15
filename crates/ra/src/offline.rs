@@ -637,7 +637,7 @@ mod tests {
 
     #[test]
     fn json_probes() {
-        let body = r#"{"Success":true,"GameID":14402,"Title":"Pokémon"}"#.as_bytes();
+        let body = r#"{"Success":true,"GameID":14402,"Title":"Some Game"}"#.as_bytes();
         assert!(body_reports_success(body));
         assert!(body_has_success_key(body));
         assert!(!body_reports_success(br#"{"Success":false,"Error":"nope"}"#));

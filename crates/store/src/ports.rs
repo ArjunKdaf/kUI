@@ -117,7 +117,7 @@ fn parse_catalog(body: &str, sd_root: &Path) -> Result<Catalog, String> {
             None => hidden += 1,
         }
     }
-    ports.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
+    ports.sort_by_key(|p| p.title.to_lowercase());
     Ok(Catalog { ports, hidden, runtimes })
 }
 
