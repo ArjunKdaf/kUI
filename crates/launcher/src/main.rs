@@ -10,6 +10,7 @@ mod art;
 mod dude;
 mod fn_page;
 mod hub;
+mod portforge;
 mod scraper;
 mod sd;
 mod ui;
@@ -252,6 +253,14 @@ enum Screen {
         menu: Option<usize>,
         armed_delete: bool,
     },
+    /// Port Forge: browse (folders only) to an extracted RPG Maker game
+    /// folder. Selecting a detected game hands off to PortForgeRun; a plain
+    /// folder just descends.
+    PortForge { pane: FilePane },
+    /// Port Forge is building the port from `source` (a game folder). Shows
+    /// progress, then a delete-original prompt (Y delete / B keep). Either
+    /// way it exits to the Control Panel — never back to the picker.
+    PortForgeRun { source: PathBuf },
     /// (label, platform dir; None = all platforms)
     ScraperPlatforms { rows: Vec<(String, Option<PathBuf>)>, selected: usize, scroll: usize },
     /// (label, Some(tag) = one platform, None = all); ret = hub (page, item)
@@ -918,6 +927,35 @@ fn run() -> i32 {
     let mut ports_all = kui_store::ports::Catalog::default();
     // any install/remove happened: rescan the library on ports exit
     let mut ports_dirty = false;
+    // Port Forge sets this when a forge succeeds; leaving the screen then
+    // rescans platforms so the new port shows on the carousel without a reboot.
+    let forge_dirty =
+        std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    // After a successful forge, the source the user picked (folder or .zip)
+    // is a leftover duplicate — Port Forge offers to delete it to reclaim
+    // space (X on the Done screen). This holds that path until acted on.
+    let forge_del: std::sync::Arc<std::sync::Mutex<Option<std::path::PathBuf>>> =
+        std::sync::Arc::new(std::sync::Mutex::new(None));
+    // Forge progress-bar fraction (0.0–1.0), driven by bytes copied.
+    let forge_pct: std::sync::Arc<std::sync::Mutex<f32>> =
+        std::sync::Arc::new(std::sync::Mutex::new(0.0));
+    // Set true when the async delete-original thread finishes, so the run
+    // screen leaves to the Control Panel without freezing the UI on the
+    // remove_dir_all (thousands of files on FAT32 = seconds).
+    let forge_del_done =
+        std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    // In-flight game/port wipes. The heavy delete (port payload = hundreds
+    // of MB / thousands of files) runs on a thread so the list never freezes;
+    // the row is dropped instantly. Non-zero → the Y hint reads "Wiping…".
+    let wiping = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    // Files browser paste/delete: recursive copy/remove of a whole folder is
+    // slow, so it runs on a thread too. `files_busy` > 0 shows the verb
+    // (Pasting…/Deleting…) as the screen note; `files_dirty` triggers a pane
+    // refresh once the op finishes (the changed entry appears/vanishes then).
+    let files_busy = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let files_verb: std::sync::Arc<std::sync::Mutex<&'static str>> =
+        std::sync::Arc::new(std::sync::Mutex::new(""));
+    let files_dirty = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     // Ports install/uninstall queue. A / uninstall enqueue a job and return
     // instantly; one background worker drains the channel FIFO so the cursor
     // never blocks. `port_jobs` maps zip_name -> row status ("Queued" /
@@ -1515,6 +1553,12 @@ fn run() -> i32 {
                             scroll: 0,
                             rtr: false,
                         });
+                        v_rep.clear();
+                    } else if hub_pages[*selected].title == "Port Forge" {
+                        if let Ok(mut m) = store_msg.lock() {
+                            m.clear();
+                        }
+                        next_screen = Some(Screen::PortForge { pane: dir_pane(sd.root.clone()) });
                         v_rep.clear();
                     } else if hub_pages[*selected].title == "Updater" {
                         if let Ok(mut g) = rel_fetch.lock() {
@@ -2707,7 +2751,7 @@ fn run() -> i32 {
                                 } else if all_here {
                                     true
                                 } else {
-                                    p.genres.iter().any(|g| *g == key)
+                                    p.genres.contains(&key)
                                 }
                             })
                             .cloned()
@@ -3153,6 +3197,15 @@ fn run() -> i32 {
                 }
             }
             Screen::Files { panes, active, menu, armed_delete } => {
+                // an async paste/delete finished → re-read both panes so the
+                // changed entry appears/vanishes (selection/scroll clamped)
+                if files_dirty.swap(false, std::sync::atomic::Ordering::Relaxed) {
+                    for p in panes.iter_mut() {
+                        p.rows = file_rows(&p.dir);
+                        p.selected = p.selected.min(p.rows.len().saturating_sub(1));
+                        p.scroll = p.scroll.min(p.selected);
+                    }
+                }
                 if let Some(mi) = menu {
                     // START action menu is open; acts on the active pane
                     let acts = file_actions(&file_clip);
@@ -3171,8 +3224,21 @@ fn run() -> i32 {
                                 *menu = None;
                             }
                             "Paste" => {
+                                // recursive copy/move on a thread so a big
+                                // folder never freezes the browser
                                 if let Some((src, cut)) = file_clip.take() {
-                                    let _ = file_paste(&src, &pane.dir, cut);
+                                    let dest = pane.dir.clone();
+                                    let busy = files_busy.clone();
+                                    let dirty = files_dirty.clone();
+                                    busy.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                                    if let Ok(mut vb) = files_verb.lock() {
+                                        *vb = "Pasting…";
+                                    }
+                                    std::thread::spawn(move || {
+                                        let _ = file_paste(&src, &dest, cut);
+                                        dirty.store(true, std::sync::atomic::Ordering::Relaxed);
+                                        busy.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+                                    });
                                 }
                                 *menu = None;
                             }
@@ -3209,12 +3275,26 @@ fn run() -> i32 {
                             }
                             "Delete" => {
                                 if *armed_delete {
+                                    // recursive remove on a thread; the row
+                                    // vanishes when the pane refreshes on done
                                     if let Some(row) = pane.rows.get(pane.selected) {
-                                        let _ = if row.is_dir {
-                                            std::fs::remove_dir_all(&row.path)
-                                        } else {
-                                            std::fs::remove_file(&row.path)
-                                        };
+                                        let path = row.path.clone();
+                                        let is_dir = row.is_dir;
+                                        let busy = files_busy.clone();
+                                        let dirty = files_dirty.clone();
+                                        busy.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                                        if let Ok(mut vb) = files_verb.lock() {
+                                            *vb = "Deleting…";
+                                        }
+                                        std::thread::spawn(move || {
+                                            let _ = if is_dir {
+                                                std::fs::remove_dir_all(&path)
+                                            } else {
+                                                std::fs::remove_file(&path)
+                                            };
+                                            dirty.store(true, std::sync::atomic::Ordering::Relaxed);
+                                            busy.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+                                        });
                                     }
                                     *armed_delete = false;
                                     *menu = None;
@@ -3296,6 +3376,198 @@ fn run() -> i32 {
                         }
                         v_rep.clear();
                     }
+                }
+            }
+            Screen::PortForge { pane } => {
+                if v_step != 0 && !pane.rows.is_empty() {
+                    pane.selected =
+                        (pane.selected as i32 + v_step).clamp(0, pane.rows.len() as i32 - 1) as usize;
+                    let visible = 10usize;
+                    if pane.selected < pane.scroll {
+                        pane.scroll = pane.selected;
+                    }
+                    if pane.selected >= pane.scroll + visible {
+                        pane.scroll = pane.selected + 1 - visible;
+                    }
+                }
+                if confirm && let Some(row) = pane.rows.get(pane.selected) {
+                    if row.is_package {
+                        // a Port Forge Web package → install it (move into
+                        // place). Reuses the forge progress screen; no delete
+                        // prompt (install consumes the package, no leftover).
+                        let src = row.path.clone();
+                        let root = sd.root.clone();
+                        let msg = store_msg.clone();
+                        let dirty = forge_dirty.clone();
+                        let pct = forge_pct.clone();
+                        if let Ok(mut m) = msg.lock() {
+                            *m = "Preparing…".into();
+                        }
+                        if let Ok(mut d) = forge_del.lock() {
+                            *d = None;
+                        }
+                        if let Ok(mut p) = forge_pct.lock() {
+                            *p = 0.0;
+                        }
+                        std::thread::spawn(move || {
+                            let r = portforge::install_package(&root, &src, &mut |frac, s| {
+                                if let Ok(mut m) = msg.lock() {
+                                    *m = s.to_string();
+                                }
+                                if let Ok(mut p) = pct.lock() {
+                                    *p = frac;
+                                }
+                            });
+                            if let Ok(mut m) = msg.lock() {
+                                *m = match r {
+                                    Ok(t) => {
+                                        dirty.store(true, std::sync::atomic::Ordering::Relaxed);
+                                        format!("Done — {t} is ready in Ports.")
+                                    }
+                                    Err(e) => format!("Failed: {e}"),
+                                };
+                            }
+                        });
+                        next_screen = Some(Screen::PortForgeRun { source: row.path.clone() });
+                    } else if row.is_game {
+                        // detected RPG Maker game → close the picker, hand off
+                        // to the progress screen, and start the forge thread
+                        let src = row.path.clone();
+                        let root = sd.root.clone();
+                        let msg = store_msg.clone();
+                        let dirty = forge_dirty.clone();
+                        let del = forge_del.clone();
+                        let pct = forge_pct.clone();
+                        if let Ok(mut m) = msg.lock() {
+                            *m = "Preparing…".into();
+                        }
+                        if let Ok(mut d) = forge_del.lock() {
+                            *d = None;
+                        }
+                        if let Ok(mut p) = forge_pct.lock() {
+                            *p = 0.0;
+                        }
+                        std::thread::spawn(move || {
+                            let r = portforge::forge(&root, &src, &mut |frac, s| {
+                                if let Ok(mut m) = msg.lock() {
+                                    *m = s.to_string();
+                                }
+                                if let Ok(mut p) = pct.lock() {
+                                    *p = frac;
+                                }
+                            });
+                            if let Ok(mut m) = msg.lock() {
+                                *m = match r {
+                                    Ok(t) => {
+                                        dirty.store(true, std::sync::atomic::Ordering::Relaxed);
+                                        if let Ok(mut d) = del.lock() {
+                                            *d = Some(src.clone());
+                                        }
+                                        format!("Done — {t} is ready in Ports.")
+                                    }
+                                    Err(e) => format!("Failed: {e}"),
+                                };
+                            }
+                        });
+                        next_screen = Some(Screen::PortForgeRun { source: row.path.clone() });
+                    } else {
+                        // a plain folder → descend to keep browsing
+                        pane.dir = row.path.clone();
+                        pane.rows = dir_rows(&pane.dir);
+                        pane.selected = 0;
+                        pane.scroll = 0;
+                    }
+                    v_rep.clear();
+                }
+                if back {
+                    if pane.dir == sd.root {
+                        if let Ok(mut m) = store_msg.lock() {
+                            m.clear();
+                        }
+                        next_screen = Some(Screen::HubIndex {
+                            selected: hub_pos(&hub_pages, "Port Forge"),
+                        });
+                    } else {
+                        let child = pane.dir.clone();
+                        if let Some(parent) = pane.dir.parent() {
+                            pane.dir = parent.to_path_buf();
+                        }
+                        pane.rows = dir_rows(&pane.dir);
+                        pane.selected =
+                            pane.rows.iter().position(|r2| r2.path == child).unwrap_or(0);
+                        pane.scroll = pane.selected.saturating_sub(9);
+                    }
+                    v_rep.clear();
+                }
+            }
+            Screen::PortForgeRun { .. } => {
+                // Busy while the forge thread is still working (the status is a
+                // progress line, not a terminal "Done"/"Failed" one).
+                let busy = store_msg
+                    .lock()
+                    .map(|m| !m.is_empty() && !m.starts_with("Done") && !m.contains("Failed"))
+                    .unwrap_or(false);
+                let can_delete = forge_del.lock().map(|d| d.is_some()).unwrap_or(false);
+                // On success: Y deletes the original folder (async, so the UI
+                // shows a "Deleting…" message instead of freezing), B keeps it.
+                // On failure: only B. Either exit routes to the Control Panel.
+                let mut leave = false;
+                if !busy && wipe_btn && can_delete {
+                    if let Some(path) = forge_del.lock().ok().and_then(|mut d| d.take()) {
+                        if let Ok(mut m) = store_msg.lock() {
+                            *m = "Deleting original files…".into();
+                        }
+                        let done = forge_del_done.clone();
+                        let msg = store_msg.clone();
+                        std::thread::spawn(move || {
+                            let _ = if path.is_dir() {
+                                std::fs::remove_dir_all(&path)
+                            } else {
+                                std::fs::remove_file(&path)
+                            };
+                            if let Ok(mut m) = msg.lock() {
+                                *m = "Done — original files deleted.".into();
+                            }
+                            done.store(true, std::sync::atomic::Ordering::Relaxed);
+                        });
+                    }
+                } else if !busy && back {
+                    if let Ok(mut d) = forge_del.lock() {
+                        *d = None;
+                    }
+                    leave = true;
+                }
+                // the async delete finished → leave to the Control Panel
+                if forge_del_done.swap(false, std::sync::atomic::Ordering::Relaxed) {
+                    leave = true;
+                }
+                if leave {
+                    // a forge happened: rescan so the new port appears on the
+                    // carousel without a reboot (same as ports install)
+                    if forge_dirty.swap(false, std::sync::atomic::Ordering::Relaxed) {
+                        ports_dirty = false;
+                        platforms = sd.scan_platforms();
+                        retain_launchable(&mut platforms, &sd, &cfg);
+                        let (t2, _d2) = build_tiles(platforms.len());
+                        tiles = t2;
+                        tile = tile.min(tiles.len().saturating_sub(1));
+                        bg.clear();
+                        logo.clear();
+                        fbg.retain(|k, _| *k == ROOT_FBG);
+                        boxart.clear();
+                        infos.clear();
+                        remember.clear();
+                        request_carousel_art(
+                            &loader, &mut bg, &mut logo, &sd, &tiles, &platforms, tile,
+                        );
+                    }
+                    if let Ok(mut m) = store_msg.lock() {
+                        m.clear();
+                    }
+                    next_screen = Some(Screen::HubIndex {
+                        selected: hub_pos(&hub_pages, "Port Forge"),
+                    });
+                    v_rep.clear();
                 }
             }
             Screen::InputTest => {
@@ -4126,32 +4398,54 @@ fn run() -> i32 {
                                 && now - at < std::time::Duration::from_secs(2) =>
                         {
                             let rom = rom.clone();
-                            // Wipe inside Ports is a full uninstall: reuse the
-                            // ports removal so the payload dir under Data/ports
-                            // is cleared too (wipe_game only knows the script +
-                            // box art, and would strand hundreds of MB). Then
-                            // wipe_game still purges recents/pins/info as usual.
-                            if sd.tag_of_rom(&rom).as_deref() == Some("PORTS") {
-                                let _ = kui_store::ports::uninstall_script(&sd.root, &rom);
-                            }
-                            sd.wipe_game(&rom);
-                            // last trace: per-game config keys (controls,
-                            // cheats, shader, scaling, shortcuts…). Trailing
-                            // dot so "Mario" can't match "Mario Bros" keys.
-                            if let (Some(tag), Some(stem)) = (
-                                sd.tag_of_rom(&rom),
+                            let tag = sd.tag_of_rom(&rom);
+                            let is_port = tag.as_deref() == Some("PORTS");
+                            // FAST, on the UI thread: drop the row + purge the
+                            // small per-game config keys (trailing dot so
+                            // "Mario" can't match "Mario Bros" keys) so the
+                            // cursor never blocks.
+                            if let (Some(t), Some(stem)) = (
+                                &tag,
                                 rom.file_stem().map(|s| s.to_string_lossy().into_owned()),
                             ) {
-                                cfg.remove_prefix(&format!("game.{tag}.{stem}."));
+                                cfg.remove_prefix(&format!("game.{t}.{stem}."));
                                 let _ = cfg.save();
                             }
                             rows.remove(*selected);
                             if *selected >= rows.len() && *selected > 0 {
                                 *selected -= 1;
                             }
+                            // Also drop it from the cached platform rom list —
+                            // every platform rebuilds its list from
+                            // platforms[pi].roms (loaded once at startup), so
+                            // without this the wiped game reappears as a ghost
+                            // on re-entering the platform (the files are already
+                            // gone; only the stale cache still lists it).
+                            if let ListKind::Platform(pi) = kind {
+                                let pi = *pi;
+                                let pdir = platforms[pi].dir.clone();
+                                platforms[pi].roms.retain(|r| pdir.join(r) != rom);
+                            }
                             boxart.clear();
                             infos.clear();
                             wipe_armed = None;
+                            // SLOW, on a thread: the actual file deletion. A
+                            // port wipe is a full uninstall (payload dir under
+                            // Data/ports is hundreds of MB / thousands of files
+                            // → seconds on FAT32); wipe_game clears rom, box
+                            // art, saves, states. Off the UI thread so the list
+                            // stays live; the Y hint reads "Wiping…" meanwhile.
+                            let root = sd.root.clone();
+                            let flying = wiping.clone();
+                            flying.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                            std::thread::spawn(move || {
+                                let sd2 = Sd::new(root);
+                                if is_port {
+                                    let _ = kui_store::ports::uninstall_script(&sd2.root, &rom);
+                                }
+                                sd2.wipe_game(&rom);
+                                flying.fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+                            });
                         }
                         _ => wipe_armed = Some((*selected, now)),
                     }
@@ -4953,6 +5247,115 @@ fn run() -> i32 {
                                 );
                             }
                         }
+                    }
+                }
+            }
+            Screen::PortForge { pane } => {
+                if let Some(f) = font.as_mut() {
+                    let rel = pane.dir.strip_prefix(&sd.root).unwrap_or(&pane.dir);
+                    let head = if rel.as_os_str().is_empty() {
+                        "Browse to your extracted RPG Maker game folder".to_string()
+                    } else {
+                        format!("SD Card/{}", rel.display())
+                    };
+                    let shown = f.fit(&v.gl, &head, 22, sw as f32 - 64.0);
+                    f.draw(&r, &v.gl, &shown, 32.0, 20.0, 22, theme.c6);
+                    let top = 56.0;
+                    let visible = 10usize;
+                    if pane.rows.is_empty() {
+                        f.draw(&r, &v.gl, "No folders here", 52.0, top + 18.0, LIST_FONT, theme.c4);
+                    }
+                    for row in 0..visible.min(pane.rows.len()) {
+                        let idx = pane.scroll + row;
+                        if idx >= pane.rows.len() {
+                            break;
+                        }
+                        let fr = &pane.rows[idx];
+                        let is_game = fr.is_game;
+                        let is_pkg = fr.is_package;
+                        let name = if fr.is_dir { format!("{}/", fr.name) } else { fr.name.clone() };
+                        let value = if is_pkg {
+                            "PORT".to_string()
+                        } else if is_game {
+                            "GAME".to_string()
+                        } else {
+                            fr.info.clone()
+                        };
+                        let y = top + row as f32 * ROW_H;
+                        let lh = f.line_height(LIST_FONT);
+                        let ilh = f.line_height(22);
+                        let pill_y = y + (ROW_H - PILL_H as f32) / 2.0;
+                        let text_y = pill_y + (PILL_H as f32 - lh) / 2.0;
+                        let info_y = pill_y + (PILL_H as f32 - ilh) / 2.0;
+                        let vw = f.measure(&v.gl, &value, 22);
+                        let vx = sw as f32 - 48.0 - vw;
+                        let name_w = vx - 52.0 - 16.0;
+                        if idx == pane.selected {
+                            let sel_c = theme.c1;
+                            draw_roll(
+                                f, &r, &v.gl, &mut roll_state, "pforge", &name, 52.0, text_y,
+                                pill_y, PILL_H as f32, LIST_FONT, sel_c, name_w, now,
+                            );
+                            f.draw(&r, &v.gl, &value, vx, info_y, 22, sel_c);
+                        } else {
+                            let nc = if is_game || is_pkg {
+                                theme.c2
+                            } else if fr.is_dir {
+                                theme.c6
+                            } else {
+                                theme.c4
+                            };
+                            let shown = f.fit(&v.gl, &name, LIST_FONT, name_w);
+                            f.draw(&r, &v.gl, &shown, 52.0, text_y, LIST_FONT, nc);
+                            let vc = if is_game || is_pkg { theme.c2 } else { theme.c4 };
+                            f.draw(&r, &v.gl, &value, vx, info_y, 22, vc);
+                        }
+                    }
+                }
+            }
+            Screen::PortForgeRun { source } => {
+                if let Some(f) = font.as_mut() {
+                    let msg = store_msg.lock().map(|m| m.clone()).unwrap_or_default();
+                    let busy =
+                        !msg.is_empty() && !msg.starts_with("Done") && !msg.contains("Failed");
+                    let can_delete = forge_del.lock().map(|d| d.is_some()).unwrap_or(false);
+                    let title = "Port Forge";
+                    let tw = f.measure(&v.gl, title, 28);
+                    f.draw(&r, &v.gl, title, (sw as f32 - tw) / 2.0, sh as f32 * 0.30, 28, theme.c1);
+                    let sline = f.fit(&v.gl, &msg, 22, sw as f32 - 80.0);
+                    let slw = f.measure(&v.gl, &sline, 22);
+                    let sc = if msg.contains("Failed") { theme.c4 } else { theme.c2 };
+                    f.draw(&r, &v.gl, &sline, (sw as f32 - slw) / 2.0, sh as f32 * 0.45, 22, sc);
+                    if busy {
+                        // progress bar (mirrors the scraper): dim track + fill
+                        let bw = sw as f32 * 0.6;
+                        let bx = (sw as f32 - bw) / 2.0;
+                        let by = sh as f32 * 0.55;
+                        r.rect(&v.gl, bx, by, bw, 10.0, [0.25, 0.25, 0.25, 1.0]);
+                        if msg.starts_with("Deleting") {
+                            // delete has no byte count — an indeterminate,
+                            // ping-ponging segment shows it's still working
+                            let seg = bw * 0.25;
+                            let ph = std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .map(|d| d.as_secs_f32())
+                                .unwrap_or(0.0)
+                                % 2.0;
+                            let pp = (ph - 1.0).abs(); // 0→1→0 over 2s
+                            r.rect(&v.gl, bx + (bw - seg) * pp, by, seg, 10.0, theme.c1);
+                        } else {
+                            let frac = forge_pct.lock().map(|p| *p).unwrap_or(0.0).clamp(0.0, 1.0);
+                            r.rect(&v.gl, bx, by, bw * frac, 10.0, theme.c1);
+                        }
+                    } else if can_delete {
+                        let fname = source
+                            .file_name()
+                            .map(|s| s.to_string_lossy().into_owned())
+                            .unwrap_or_default();
+                        let q = format!("Delete the original files (\u{201C}{fname}\u{201D}) to free space?");
+                        let q = f.fit(&v.gl, &q, 20, sw as f32 - 80.0);
+                        let qw = f.measure(&v.gl, &q, 20);
+                        f.draw(&r, &v.gl, &q, (sw as f32 - qw) / 2.0, sh as f32 * 0.55, 20, theme.c4);
                     }
                 }
             }
@@ -6196,8 +6599,23 @@ fn run() -> i32 {
                 Screen::BootLogo { .. } => Some("Shown at power on. Applies to the boot partition."),
                 Screen::Themes { .. } => Some("Applying restarts kUI to reload the art."),
                 Screen::InputTest => Some("Hold MENU to exit."),
-                // no desc — the button hints already say Pane / Menu
-                Screen::Files { .. } => None,
+                Screen::PortForge { pane } => Some(
+                    match pane.rows.get(pane.selected) {
+                        Some(fr) if fr.is_package => "Port Forge package — A installs it into Ports.",
+                        Some(fr) if fr.is_game => "RPG Maker game found — A installs it as a port.",
+                        _ => "Open your extracted game folder, or a Port Forge Web package.",
+                    },
+                ),
+                Screen::PortForgeRun { .. } => None,
+                // busy note during an async paste/delete; otherwise the
+                // button hints already say Pane / Menu
+                Screen::Files { .. } => {
+                    if files_busy.load(std::sync::atomic::Ordering::Relaxed) > 0 {
+                        files_verb.lock().ok().map(|v| *v)
+                    } else {
+                        None
+                    }
+                }
                 Screen::LedEditor { row, profile, .. } => Some(match row {
                     0 if *profile == 0 => "The everyday look. Applied now and at boot.",
                     0 => "Applied on its event once the daemon lands.",
@@ -6224,7 +6642,13 @@ fn run() -> i32 {
                     text_smoked(f, &r, &v.gl, d, 16.0, dy, dfont, theme.c6);
                 }
             }
-            let wipe_hint = if wipe_armed.is_some() { "Sure?" } else { "Wipe" };
+            let wipe_hint = if wiping.load(std::sync::atomic::Ordering::Relaxed) > 0 {
+                "Wiping…"
+            } else if wipe_armed.is_some() {
+                "Sure?"
+            } else {
+                "Wipe"
+            };
             let _ = &wipe_hint;
             let hints: &[(&str, &str)] = match &screen {
                 Screen::Carousel => &[
@@ -6287,6 +6711,24 @@ fn run() -> i32 {
                 Screen::List { kind: ListKind::Paks, .. } => &[("A", "Open"), ("B", "Back")],
                 Screen::GameTime { .. } => &[("</>", "Jump"), ("B", "Back")],
                 Screen::InputTest => &[("MENU", "Hold to exit")],
+                Screen::PortForge { pane } => match pane.rows.get(pane.selected) {
+                    Some(fr) if fr.is_package || fr.is_game => &[("A", "Install"), ("B", "Back")],
+                    Some(_) => &[("A", "Open"), ("B", "Back")],
+                    None => &[("B", "Back")],
+                },
+                Screen::PortForgeRun { .. } => {
+                    let busy = store_msg
+                        .lock()
+                        .map(|m| !m.is_empty() && !m.starts_with("Done") && !m.contains("Failed"))
+                        .unwrap_or(false);
+                    if busy {
+                        &[]
+                    } else if forge_del.lock().map(|d| d.is_some()).unwrap_or(false) {
+                        &[("Y", "Delete original"), ("B", "Keep")]
+                    } else {
+                        &[("B", "Back")]
+                    }
+                }
                 Screen::Files { menu: Some(_), .. } => &[("A", "Select"), ("B", "Close")],
                 Screen::Files { panes, active, .. } => {
                     let pane = &panes[*active];
@@ -7062,6 +7504,14 @@ struct FileRow {
     is_dir: bool,
     /// Right-column text: entry count for folders, size for files.
     info: String,
+    /// Port Forge only: this folder is directly an RPG Maker game. Computed
+    /// once at row-build time (dir_rows), so hint/desc/render never touch
+    /// the filesystem per frame. Always false for the Files browser.
+    is_game: bool,
+    /// Port Forge only: this folder is a Port Forge Web package (has a
+    /// `portforge.json`). Selecting it installs (moves into place) rather than
+    /// forges. Computed once in dir_rows, like `is_game`.
+    is_package: bool,
 }
 
 fn file_rows(dir: &Path) -> Vec<FileRow> {
@@ -7082,7 +7532,7 @@ fn file_rows(dir: &Path) -> Vec<FileRow> {
             } else {
                 e.metadata().map(|m| fmt_size(m.len())).unwrap_or_default()
             };
-            out.push(FileRow { name, path, is_dir, info });
+            out.push(FileRow { name, path, is_dir, info, is_game: false, is_package: false });
         }
     }
     out.sort_by(|a, b| {
@@ -7163,6 +7613,24 @@ struct FilePane {
 
 fn file_pane(dir: PathBuf) -> FilePane {
     FilePane { rows: file_rows(&dir), dir, selected: 0, scroll: 0 }
+}
+
+/// Directory-only rows. Port Forge is a folder picker now (on-device zip
+/// extraction is slow, so only pre-extracted game folders are accepted) —
+/// hiding files keeps the browse simple.
+fn dir_rows(dir: &Path) -> Vec<FileRow> {
+    let mut r = file_rows(dir);
+    r.retain(|f| f.is_dir);
+    for f in &mut r {
+        // a package wins over game detection (it has no root Game.ini anyway)
+        f.is_package = portforge::is_port_package(&f.path);
+        f.is_game = !f.is_package && portforge::is_rmxp_game(&f.path);
+    }
+    r
+}
+
+fn dir_pane(dir: PathBuf) -> FilePane {
+    FilePane { rows: dir_rows(&dir), dir, selected: 0, scroll: 0 }
 }
 
 fn files_reopen(dirs: &[PathBuf; 2], active: usize) -> Screen {
@@ -7872,7 +8340,7 @@ enum HubRow {
 
 const HUB_GROUPS: [(&str, &[&str]); 4] = [
     ("LOOK", &["Appearance", "Themes", "Boot Logo", "LED Control", "Scraper"]),
-    ("PLAY", &["In-Game", "Core Options", "FN Switch", "Game Tracker", "Ports"]),
+    ("PLAY", &["In-Game", "Core Options", "FN Switch", "Game Tracker", "Ports", "Port Forge"]),
     (
         "DEVICE",
         &["Display", "Connectivity", "Input", "Files", "Date & Time", "Battery", "System"],

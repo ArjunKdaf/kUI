@@ -326,6 +326,11 @@ pub fn pages(device_name: &str, stock_ver: &str, busybox_ver: &str) -> Vec<Page>
             items: vec![],
         },
         Page {
+            title: "Port Forge",
+            desc: "Install RPG Maker games as ports · more engines coming",
+            items: vec![],
+        },
+        Page {
             title: "Updater",
             desc: "kUI over-the-air updates",
             items: vec![],

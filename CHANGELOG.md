@@ -4,6 +4,17 @@
 
 ### New
 
+- **Port Forge — bring your own RPG Maker game.** A Control Panel
+  tool that turns an extracted RPG Maker XP/VX/VX Ace game folder into
+  a standard PortMaster port on the bundled mkxp-z runtime: it strips
+  the Windows engine, writes the launch script + config + controls,
+  lifts boxart, and the game appears in Ports. It also installs
+  pre-built **Port Forge Web** packages (a folder carrying a
+  `portforge.json`) — moving files into place, deduping shared assets,
+  and registering the port. The installer is engine-agnostic, so new
+  engines added web-side never need a device change. Offline and
+  local: kUI ships the ARM engine, you bring the game.
+
 - **Native ports support (first cut).** kUI now launches PortMaster-
   ecosystem ports with its own built-in control layer — no PortMaster
   pak needed. Port launcher scripts in `Roms/Ports (PORTS)` appear as
@@ -50,6 +61,12 @@
   the pinned release exactly as before.
 
 ### Fixed
+
+- **Wiped games no longer reappear when you re-enter a platform.** A
+  wipe deleted the files and dropped the on-screen row, but not the
+  cached platform rom list the list is rebuilt from — so the game came
+  back as a dead ghost on re-entry (every platform, not just Ports).
+  Wipe now also drops the entry from that cache.
 
 - **Entering PlayStation core options no longer freezes the device.**
   The options list is enumerated by loading the core in a child
