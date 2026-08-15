@@ -166,18 +166,6 @@ Defaults:
 > The Brick/Hammer has **no analog sticks**, so fast-forward lives on the
 > **F2** front button (not R3), and Turbo on **F1**.
 
-## Building
-
-Cross-compiled to `aarch64-unknown-linux-gnu` with kUI's own
-`aarch64-kui-linux-gnu` toolchain (glibc 2.28; place it in `toolchain/`):
-
-```sh
-nix-shell --run 'cargo build --release --target aarch64-unknown-linux-gnu'
-scripts/package.sh   # assembles the release zip
-```
-
-Builds are deterministic.
-
 ## Credits
 
 - **kUI** by [ArjunKdaf](https://github.com/ArjunKdaf)
