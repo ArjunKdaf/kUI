@@ -327,7 +327,7 @@ pub fn pages(device_name: &str, stock_ver: &str, busybox_ver: &str) -> Vec<Page>
         },
         Page {
             title: "Port Forge",
-            desc: "Install RPG Maker games as ports · more engines coming",
+            desc: "Install game ports · build yours at arjunkdaf.github.io/portforge-web",
             items: vec![],
         },
         Page {

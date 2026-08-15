@@ -5254,7 +5254,7 @@ fn run() -> i32 {
                 if let Some(f) = font.as_mut() {
                     let rel = pane.dir.strip_prefix(&sd.root).unwrap_or(&pane.dir);
                     let head = if rel.as_os_str().is_empty() {
-                        "Browse to your extracted RPG Maker game folder".to_string()
+                        "Build a port at arjunkdaf.github.io/portforge-web · browse to install it".to_string()
                     } else {
                         format!("SD Card/{}", rel.display())
                     };
