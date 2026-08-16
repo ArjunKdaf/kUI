@@ -60,6 +60,14 @@
   for installed paks. Offline or rate-limited devices fall back to
   the pinned release exactly as before.
 
+### Removed
+
+- **Grout is no longer listed on Pak Dek.** Removed at the request of
+  its developer, who does not wish to support kUI as a platform
+  ([#2](https://github.com/ArjunKdaf/kUI/issues/2)). Already-installed
+  copies are untouched; they just won't receive updates through Pak
+  Dek.
+
 ### Fixed
 
 - **Wiped games no longer reappear when you re-enter a platform.** A
