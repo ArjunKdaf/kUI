@@ -10,6 +10,7 @@ release but is not kUI code.
 | rcheevos (RetroAchievements client) | MIT | vendored at `crates/ra/vendor/rcheevos/LICENSE` |
 | Art Book Next carousel artwork + logos | CC-BY-NC-SA | full credits: `LICENSES/ARTWORK.md` |
 | libretro cores | per core | full inventory with upstreams: `LICENSES/CORES.md` |
+| Port Forge engine runtimes | per engine (GPL/MIT/…) | full inventory + license notices: `LICENSES/ENGINES.md` + `LICENSES/engines/` |
 | `cacert.pem` | MPL 2.0 | Mozilla CA certificate bundle |
 
 The SIL Open Font License permits bundling and redistribution of the
