@@ -762,45 +762,6 @@
       "experimental": false
     },
     {
-      "id": "cR1dW4zK8m",
-      "storefront_name": "Search Pak",
-      "name": "Search",
-      "version": "0.5.0",
-      "type": "TOOL",
-      "description": "An app for searching your ROM collection.",
-      "author": "Cuteseal",
-      "repo_url": "https://github.com/laesetuc/minui-search-pak",
-      "previous_repo_urls": null,
-      "release_filename": "Search.pak.zip",
-      "changelog": null,
-      "previous_names": null,
-      "scripts": {
-        "post_install": {
-          "path": "",
-          "args": null
-        },
-        "post_update": {
-          "path": "",
-          "args": null
-        },
-        "post_uninstall": {
-          "path": "",
-          "args": null
-        }
-      },
-      "update_ignore": null,
-      "screenshots": null,
-      "platforms": [
-        "tg5040"
-      ],
-      "categories": [
-        "ROM Management"
-      ],
-      "large_pak": false,
-      "disabled": false,
-      "experimental": false
-    },
-    {
       "id": "zK8wB1jL4g",
       "storefront_name": "ScummVM",
       "name": "ScummVM",

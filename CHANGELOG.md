@@ -62,6 +62,12 @@
 
 ### Removed
 
+- **Search Pak is no longer listed on Pak Dek.** Its launch step
+  execs a NextUI-style `Emus/<TAG>.pak/launch.sh`, which kUI's
+  built-in-core platforms don't provide — search worked, but
+  launching a result failed. Delisted until kUI has a launch shim
+  or native search.
+
 - **Grout is no longer listed on Pak Dek.** Removed at the request of
   its developer, who does not wish to support kUI as a platform
   ([#2](https://github.com/ArjunKdaf/kUI/issues/2)). Already-installed
