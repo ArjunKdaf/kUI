@@ -874,12 +874,22 @@ pub fn core_supports_zip(core_path: &Path) -> bool {
     }
 
     /// Clear all cheats, then apply the enabled ones in file order.
+    ///
+    /// The index handed to `retro_cheat_set` counts only the cheats we
+    /// actually send, not their position in the file. Cores assign slots
+    /// sequentially as they receive them, and several then key the enable
+    /// flag off that slot: PCSX-ReARMed appends via `AddCheat` (which
+    /// leaves `Enabled = 0`) and only sets `Cheats[index].Enabled` when
+    /// `index < NumCheats`. Passing a file index leaves every cheat past
+    /// the first gap loaded but switched off.
     pub fn apply_cheats(&self, cheats: &[(bool, String)]) {
         unsafe {
             (self.cheat_reset)();
-            for (i, (on, code)) in cheats.iter().enumerate() {
+            let mut slot: c_uint = 0;
+            for (on, code) in cheats.iter() {
                 if *on && let Ok(c) = CString::new(code.as_str()) {
-                    (self.cheat_set)(i as c_uint, true, c.as_ptr());
+                    (self.cheat_set)(slot, true, c.as_ptr());
+                    slot += 1;
                 }
             }
         }
