@@ -76,6 +76,25 @@
 
 ### Fixed
 
+- **Cheats now actually turn on.** The index handed to the core's
+  `retro_cheat_set` was the cheat's position in the .cht file, but
+  cores assign their own slots sequentially as they receive each one.
+  PCSX-ReARMed appends a cheat with `AddCheat` — which leaves it
+  disabled — and only flips the enable flag when the index it was
+  given is below its own count, so every cheat past the first gap was
+  loaded and left switched off. Enabling cheat 6 alone did nothing at
+  all; enabling 0, 1 and 2 worked, which is what made it look
+  game-specific. kUI now numbers only the cheats it sends. Cores that
+  ignore the index and patch at set time — PicoDrive, the Game Boy and
+  SNES paths — were never affected, which is why Game Genie codes
+  always worked.
+
+- **The cheats list fills the screen.** It drew 8 rows on a panel that
+  fits 11, leaving a third of it empty, and the scroll window and the
+  renderer each hardcoded that 8 separately. Both now derive the count
+  from the screen height. Same class as the Pak Dek scrolling bug
+  below. Reported by Arjun.
+
 - **Wiped games no longer reappear when you re-enter a platform.** A
   wipe deleted the files and dropped the on-screen row, but not the
   cached platform rom list the list is rebuilt from — so the game came

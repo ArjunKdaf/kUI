@@ -24,6 +24,15 @@ const OUT_RATE: i32 = 48000;
 const SLOTS: usize = 8;
 const PILL_H: u32 = 52;
 const ROW_H: f32 = 64.0;
+/// Y of the first row in the cheats list.
+const CHEATS_TOP: f32 = 40.0;
+
+/// How many cheat rows fit on screen. The scroll window and the draw
+/// loop both call this so they cannot disagree — they used to hardcode
+/// 8 independently, which also left a third of the panel empty.
+fn cheats_visible_rows(sh: u32) -> usize {
+    (((sh as f32 - CHEATS_TOP) / ROW_H).floor() as usize).max(1)
+}
 const MENU_FONT: u32 = 30;
 
 /// Sprite rects on the shared asset sheet (1x coords; sheet is @2x, 256px)
@@ -1854,7 +1863,7 @@ fn run() -> i32 {
             if down {
                 *sel = (*sel + 1) % n;
             }
-            let visible = 8usize;
+            let visible = cheats_visible_rows(v.drawable_size().1);
             if *sel < *scroll {
                 *scroll = *sel;
             }
@@ -2318,10 +2327,10 @@ fn run() -> i32 {
         if let FeScreen::Cheats { sel, scroll } = &screen
             && let Some(f) = font.as_mut()
         {
-            let top = 40.0;
+            let top = CHEATS_TOP;
             let dl_row = usize::from(cheats.is_empty());
             let total = cheats.len() + dl_row;
-            for i in *scroll..(*scroll + 8).min(total) {
+            for i in *scroll..(*scroll + cheats_visible_rows(sh)).min(total) {
                 let row = i - *scroll;
                 let y = top + row as f32 * ROW_H;
                 let lh = f.line_height(26);
