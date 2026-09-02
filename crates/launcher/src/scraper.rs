@@ -314,6 +314,24 @@ fn curl_post_file(url: &str, body_file: &Path, out: &Path) -> bool {
 // Artwork (C fetch_artwork)
 // =============================================
 
+/// ROM names in `listed` that the cached "rom\turl" match list does not cover.
+///
+/// This is the check that makes a re-scrape pick up newly added games. The
+/// cache used to be consulted only for its existence, so anything added after
+/// the first successful scrape of a platform could never get art.
+fn unmatched_roms<'a>(cached: &str, listed: &'a str) -> Vec<&'a str> {
+    let covered: std::collections::HashSet<&str> = cached
+        .lines()
+        .filter_map(|l| l.split_once('\t'))
+        .map(|(rom, _)| rom.trim_end())
+        .collect();
+    listed
+        .lines()
+        .map(str::trim_end)
+        .filter(|r| !r.is_empty() && !covered.contains(r))
+        .collect()
+}
+
 fn fetch_artwork(ctx: &Ctx, platform_name: &str, tag: &str, art_type: &str) -> Result<(), String> {
     let rom_dir = ctx.roms_root.join(platform_name);
     let cache_dir = ctx.matches_cache();
@@ -337,15 +355,54 @@ fn fetch_artwork(ctx: &Ctx, platform_name: &str, tag: &str, art_type: &str) -> R
         }
     }
 
-    // Ask the matching server, unless a cached match list exists.
+    // Ask the matching server for every ROM the cached match list does not
+    // already cover, and merge the answer in.
     // POST /matches/<tag>/<art_type> with the ROM list as text/plain; the
     // response is "rom_filename\timage_url" lines.
-    if !match_file.exists() {
+    //
+    // This used to be `if !match_file.exists()` -- an all-or-nothing cache,
+    // where "a match list exists" meant "never ask again". The ROM list was
+    // rebuilt on every run but the match list never was, so a platform that
+    // had been scraped even once could NEVER pick up a newly added game: the
+    // new ROM went into the request file, the request was skipped, and the
+    // stale answer got replayed forever. Adding two games to a 59-game NDS
+    // folder reproduced it exactly -- both appeared in the .in.txt, neither
+    // could ever get art.
+    let cached = fs::read_to_string(&match_file).unwrap_or_default();
+    let listed = fs::read_to_string(&rom_list).unwrap_or_default();
+    let missing = unmatched_roms(&cached, &listed);
+    if !missing.is_empty() {
         ctx.set_phase("Fetching matches from server...");
         let url = format!("{MATCHER_URL}/matches/{tag}/{art_type}");
-        if !curl_post_file(&url, &rom_list, &match_file) {
+        // Ask only for what is missing; with no cache at all that is the
+        // whole list, so a first scrape behaves exactly as before.
+        let ask = cache_dir.join(format!("{tag}.{art_type}.ask.txt"));
+        fs::write(&ask, missing.join("\n") + "\n")
+            .map_err(|e| format!("write {}: {e}", ask.display()))?;
+        let fresh = cache_dir.join(format!("{tag}.{art_type}.new.txt"));
+        let ok = curl_post_file(&url, &ask, &fresh);
+        let _ = fs::remove_file(&ask);
+        if ok {
+            if let Ok(body) = fs::read_to_string(&fresh)
+                && let Ok(mut f) =
+                    fs::OpenOptions::new().create(true).append(true).open(&match_file)
+            {
+                // keep the file line-terminated so the next append cannot
+                // glue itself onto the last cached entry
+                if !cached.is_empty() && !cached.ends_with('\n') {
+                    let _ = writeln!(f);
+                }
+                let _ = f.write_all(body.as_bytes());
+                if !body.is_empty() && !body.ends_with('\n') {
+                    let _ = writeln!(f);
+                }
+            }
+        } else if cached.is_empty() {
+            // nothing cached and the server is unreachable: same hard
+            // failure as before. With a cache in hand, carry on with it.
             return Err("Failed to fetch matches from server".into());
         }
+        let _ = fs::remove_file(&fresh);
     }
 
     // The .media image is both the cache and what the carousel shows — one
@@ -756,6 +813,45 @@ fn delete_artwork(ctx: &Ctx, platform_name: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The NDS regression: two games added to a folder that had been scraped
+    /// months earlier must come back as needing a match, and the 59 already
+    /// in the cached list must not be asked for again.
+    #[test]
+    fn unmatched_finds_newly_added_roms() {
+        let cached = "Mario Kart DS.zip\thttps://x/mk.png\n\
+                      Bomberman.zip\thttps://x/bm.png\n";
+        let listed = "Mario Kart DS.zip\n\
+                      Bleach - Dark Souls.zip\n\
+                      Bomberman.zip\n\
+                      Bleach - The Blade of Fate.zip\n";
+        assert_eq!(
+            unmatched_roms(cached, listed),
+            vec!["Bleach - Dark Souls.zip", "Bleach - The Blade of Fate.zip"]
+        );
+    }
+
+    #[test]
+    fn unmatched_with_no_cache_asks_for_everything() {
+        let listed = "A.zip\nB.zip\n";
+        assert_eq!(unmatched_roms("", listed), vec!["A.zip", "B.zip"]);
+    }
+
+    #[test]
+    fn unmatched_is_empty_when_cache_covers_the_list() {
+        let cached = "A.zip\thttps://x/a.png\nB.zip\thttps://x/b.png\n";
+        assert!(unmatched_roms(cached, "A.zip\nB.zip\n").is_empty());
+    }
+
+    #[test]
+    fn unmatched_ignores_blank_and_crlf_noise() {
+        // the match file is written by curl straight from the server, so CRLF
+        // and a missing final newline both have to be tolerated
+        let cached = "A.zip\thttps://x/a.png\r\nB.zip\thttps://x/b.png";
+        let listed = "A.zip\r\n\n B.zip\nC.zip\n";
+        // " B.zip" is a genuinely different name (leading space), so it counts
+        assert_eq!(unmatched_roms(cached, listed), vec![" B.zip", "C.zip"]);
+    }
 
     #[test]
     fn canonicalize_strips_tags_and_punct() {
