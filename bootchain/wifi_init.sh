@@ -16,8 +16,15 @@ start() {
 	[ -n "$RFK" ] && echo 0 > "$RFK/soft"
 
 	# ctrl_interface path is load-bearing: the launcher talks to
-	# wpa_supplicant with wpa_cli -p /etc/wifi/sockets
-	if [ ! -f "$CONF" ]; then
+	# wpa_supplicant with wpa_cli -p /etc/wifi/sockets. update_config=1 is
+	# just as load-bearing: without it wpa_supplicant refuses save_config,
+	# so every network the user adds lives in memory only and vanishes the
+	# next time the supplicant restarts.
+	# Test -s, NOT -f: a ZERO-BYTE config is as broken as a missing one and
+	# must be regenerated. One really happened here -- the rootfs overlay
+	# filled up and a failed write left an empty file behind, which silently
+	# cost the user every saved network AND the ability to save a new one.
+	if [ ! -s "$CONF" ]; then
 		mkdir -p "$(dirname "$CONF")"
 		printf 'ctrl_interface=/etc/wifi/sockets\ndisable_scan_offload=1\nupdate_config=1\n' > "$CONF"
 	fi

@@ -2588,15 +2588,24 @@ fn run() -> i32 {
                     std::fs::read_to_string("/sys/class/power_supply/axp2202-usb/online")
                         .map(|s| s.trim() == "1")
                         .unwrap_or(false);
-                let running = |name: &str| {
+                let out = |cmd: &str| {
                     std::process::Command::new("sh")
-                        .args(["-c", &format!("pidof {name} >/dev/null 2>&1")])
-                        .status()
-                        .map(|st| st.success())
-                        .unwrap_or(false)
+                        .args(["-c", cmd])
+                        .output()
+                        .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+                        .unwrap_or_default()
                 };
-                tray_wifi = running("wpa_supplicant");
-                tray_bt = running("bluetoothd");
+                // Connections, not radios -- same rule as the launcher tray:
+                // an icon means something is actually connected. Radio on/off
+                // is answered in the quick menu and Control Panel, not here.
+                // hcitool, never bluetoothctl: the latter blocks forever
+                // waiting on bluetoothd over DBus and this runs inline.
+                tray_wifi = out("wpa_cli -p /etc/wifi/sockets -i wlan0 status 2>/dev/null")
+                    .lines()
+                    .any(|l| l == "wpa_state=COMPLETED");
+                tray_bt = out("hcitool con 2>/dev/null")
+                    .lines()
+                    .any(|l| l.contains(" ACL ") || l.contains(" SCO "));
             }
             let cy = 16.0;
             let mut tray_w = 0.0;

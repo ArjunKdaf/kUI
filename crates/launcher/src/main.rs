@@ -106,8 +106,16 @@ impl Status {
                 std::fs::read_to_string("/sys/class/power_supply/axp2202-usb/online")
                     .map(|s| s.trim() == "1")
                     .unwrap_or(false);
-            self.wifi = proc_running("wpa_supplicant");
-            self.bt = proc_running("bluetoothd");
+            // The tray reports CONNECTIONS, not radios. An icon here means
+            // something is actually connected -- wifi associated, or a BT
+            // device paired and live. A radio that is powered but joined to
+            // nothing shows no icon; "the radio is on" is answered by the
+            // quick menu and Control Panel > Connectivity, which is where
+            // that question belongs. Testing the daemon process instead was
+            // near-useless: kuid's watchdog keeps wpa_supplicant alive
+            // whenever wifi is enabled, so the icon was lit permanently.
+            self.wifi = wifi_status().is_some();
+            self.bt = bt_connected();
         }
     }
 
@@ -7955,6 +7963,29 @@ fn wifi_status() -> Option<(String, String)> {
     Some((ssid?, ip.unwrap_or_else(|| "no ip".into())))
 }
 
+/// Is at least one bluetooth device actually connected right now?
+/// Tray-only signal; the radio's on/off state is `proc_running("bluetoothd")`.
+///
+/// `hcitool con`, NOT `bluetoothctl`. bluetoothctl asks bluetoothd over DBus
+/// and BLOCKS FOREVER when it gets no reply -- with the radio off there is a
+/// bluetoothctl on this device still parked in poll_schedule_timeout from
+/// boot. This runs on the UI thread's 10s tray refresh, so a call that can
+/// hang would freeze the launcher. hcitool talks to the kernel over a raw HCI
+/// socket instead: measured 46ms and rc=0 with bluetooth fully off.
+fn bt_connected() -> bool {
+    std::process::Command::new("sh")
+        .args(["-c", "hcitool con 2>/dev/null"])
+        .output()
+        .map(|o| {
+            // "\t> ACL 00:11:.. handle 12 state 1 lm MASTER" per connection;
+            // the bare "Connections:" header means none.
+            String::from_utf8_lossy(&o.stdout)
+                .lines()
+                .any(|l| l.contains(" ACL ") || l.contains(" SCO "))
+        })
+        .unwrap_or(false)
+}
+
 /// Scan results merged with the saved-network list, strongest first.
 fn wifi_scan_collect() -> Vec<WifiNet> {
     let saved: Vec<(i32, String, bool)> = wifi_cli("list_networks")
@@ -7993,17 +8024,24 @@ fn wifi_scan_collect() -> Vec<WifiNet> {
 }
 
 /// Join a network in the background; env vars dodge shell quoting.
+///
+/// wpa_cli wants the ssid/psk value to arrive WITH literal double quotes
+/// -- `set_network 0 ssid "Home"`. A bare word is read as a hex string
+/// instead, and any real SSID fails that parse. `""$S""` does NOT produce
+/// them: in shell `""` is an empty string, so it expands to a bare `$S`
+/// and every set_network returned FAIL, leaving an ssid-less network that
+/// could never associate. `"\"$S\""` is the form that actually quotes.
 fn wifi_connect_spawn(ssid: &str, psk: Option<&str>) {
     let script = if psk.is_some() {
         r#"ID=$(wpa_cli -p /etc/wifi/sockets -i wlan0 add_network | tail -1)
-wpa_cli -p /etc/wifi/sockets -i wlan0 set_network "$ID" ssid ""$S""
-wpa_cli -p /etc/wifi/sockets -i wlan0 set_network "$ID" psk ""$P""
+wpa_cli -p /etc/wifi/sockets -i wlan0 set_network "$ID" ssid "\"$S\""
+wpa_cli -p /etc/wifi/sockets -i wlan0 set_network "$ID" psk "\"$P\""
 wpa_cli -p /etc/wifi/sockets -i wlan0 enable_network "$ID"
 wpa_cli -p /etc/wifi/sockets -i wlan0 select_network "$ID"
 wpa_cli -p /etc/wifi/sockets -i wlan0 save_config"#
     } else {
         r#"ID=$(wpa_cli -p /etc/wifi/sockets -i wlan0 add_network | tail -1)
-wpa_cli -p /etc/wifi/sockets -i wlan0 set_network "$ID" ssid ""$S""
+wpa_cli -p /etc/wifi/sockets -i wlan0 set_network "$ID" ssid "\"$S\""
 wpa_cli -p /etc/wifi/sockets -i wlan0 set_network "$ID" key_mgmt NONE
 wpa_cli -p /etc/wifi/sockets -i wlan0 enable_network "$ID"
 wpa_cli -p /etc/wifi/sockets -i wlan0 select_network "$ID"
