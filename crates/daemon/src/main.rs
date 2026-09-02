@@ -69,12 +69,60 @@ fn sh(cmd: &str) {
     let _ = std::process::Command::new("sh").args(["-c", cmd]).status();
 }
 
-fn sh_out(cmd: &str) -> String {
-    std::process::Command::new("sh")
-        .args(["-c", cmd])
-        .output()
-        .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
-        .unwrap_or_default()
+/// Run a program directly (NO shell) and give up after `secs`, killing and
+/// reaping it. Returns its stdout, or "" if it timed out or never started.
+///
+/// Exists because `bluetoothctl` can block forever: it asks bluetoothd over
+/// DBus and simply never returns when there is no reply -- true even with
+/// bluetoothd down and the radio rfkilled. The device has no `timeout`
+/// binary, and going through `sh -c` would be worse: killing the shell
+/// leaves the real command orphaned. Spawning the program itself means the
+/// pid we hold IS the thing we need to kill.
+fn cmd_out_timeout(prog: &str, args: &[&str], secs: u64) -> String {
+    let Ok(mut child) = std::process::Command::new(prog)
+        .args(args)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+    else {
+        return String::new();
+    };
+    let deadline = Instant::now() + Duration::from_secs(secs);
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => break,
+            Ok(None) => {
+                if Instant::now() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait(); // reap: a hung poll must not become a zombie
+                    return String::new();
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            Err(_) => return String::new(),
+        }
+    }
+    let mut out = String::new();
+    if let Some(mut pipe) = child.stdout.take() {
+        let _ = pipe.read_to_string(&mut out);
+    }
+    out
+}
+
+/// MAC of every bluetooth device with a live ACL/SCO link, via `hcitool con`.
+/// Raw HCI socket, no DBus, so it cannot hang: measured 46ms and rc=0 with
+/// bluetooth fully off.
+fn bt_connected_macs() -> Vec<String> {
+    cmd_out_timeout("hcitool", &["con"], 3)
+        .lines()
+        // "\t> ACL DC:44:60:7B:38:91 handle 12 state 1 lm MASTER"
+        .filter_map(|l| {
+            let mut it = l.split_whitespace().skip_while(|t| *t != "ACL" && *t != "SCO");
+            it.next()?;
+            it.next().filter(|m| m.contains(':')).map(str::to_string)
+        })
+        .collect()
 }
 
 fn read_i32(path: &str) -> Option<i32> {
@@ -512,20 +560,24 @@ fn input_thread() {
 // ---------------------------------------------------------------- routing
 
 /// First connected BT device advertising the A2DP sink UUID.
+///
+/// The device list comes from `hcitool con`, NOT `bluetoothctl devices`.
+/// This runs on the routing thread's 2s poll, and bluetoothctl blocks
+/// forever waiting on bluetoothd over DBus -- one spawned here was found
+/// still parked in poll_schedule_timeout from boot, with the radio off,
+/// and every poll leaked another. The `sh -c` wrapper also left an
+/// unreaped shell behind each time, which is where the zombie `sh`
+/// children came from.
+///
+/// hcitool is also a cheap gate: no live ACL link means nothing can be
+/// connected, so in the common case bluetoothctl is never invoked at all.
+/// The one remaining call is the UUID lookup, which has no non-DBus
+/// equivalent here -- bounded so it can stall the poll but never wedge it.
 fn detect_bt_a2dp() -> Option<String> {
-    let list = sh_out("bluetoothctl devices Connected 2>/dev/null || bluetoothctl devices 2>/dev/null");
-    for line in list.lines() {
-        let mut it = line.split_whitespace();
-        if it.next() != Some("Device") {
-            continue;
-        }
-        let Some(mac) = it.next() else { continue };
-        if !mac.contains(':') {
-            continue;
-        }
-        let info = sh_out(&format!("bluetoothctl info {mac} 2>/dev/null"));
+    for mac in bt_connected_macs() {
+        let info = cmd_out_timeout("bluetoothctl", &["info", &mac], 3);
         if info.contains("Connected: yes") && info.contains("0000110b-") {
-            return Some(mac.to_string());
+            return Some(mac);
         }
     }
     None
