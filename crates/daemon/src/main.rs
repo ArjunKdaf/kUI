@@ -81,6 +81,15 @@ fn read_i32(path: &str) -> Option<i32> {
     std::fs::read_to_string(path).ok()?.trim().parse().ok()
 }
 
+/// Is a process running on the device (pidof)?
+fn proc_running(name: &str) -> bool {
+    std::process::Command::new("sh")
+        .args(["-c", &format!("pidof {name} >/dev/null 2>&1")])
+        .status()
+        .map(|st| st.success())
+        .unwrap_or(false)
+}
+
 /// Live-state file under /tmp/kui/ (ascii, write + flush).
 fn write_state(name: &str, val: impl std::fmt::Display) {
     let _ = std::fs::create_dir_all(TMP_DIR);
@@ -651,6 +660,8 @@ fn main() {
     let shared = PathBuf::from(SHARED_DIR);
     let mut current = usize::MAX;
     let mut ticks: u32 = 0;
+    // consecutive failed wpa_supplicant revivals; drives the watchdog backoff
+    let mut wifi_fails: u32 = 0;
     println!("kuid {} up", env!("CARGO_PKG_VERSION"));
     let _ = std::fs::create_dir_all(TMP_DIR);
 
@@ -748,6 +759,26 @@ fn main() {
                     freq,
                     cool
                 );
+            }
+        }
+        // Wifi watchdog. The XR819 firmware dies across suspend (see
+        // tg5040::wifi_suspend) and takes wpa_supplicant with it; the
+        // stock init script is procd-managed with no respawn param, so
+        // nothing revives it. Since every UI reads wifi state from that
+        // process being alive, the toggle silently falls to "off" and
+        // stays there until a reboot. wifi_suspend/wifi_resume should
+        // stop the firmware dying at all -- this is the net underneath,
+        // and it also covers an OOM kill or a plain crash. 30s cadence,
+        // backing off to ~5min after 3 failed revivals so a genuinely
+        // absent interface cannot become an SDIO thrash loop.
+        if ticks.is_multiple_of(10) {
+            let cfg = kui_config::Config::load(&shared);
+            if cfg.get_or("radio.wifi", "off") != "on" || proc_running("wpa_supplicant") {
+                wifi_fails = 0;
+            } else if wifi_fails < 3 || ticks.is_multiple_of(100) {
+                wifi_fails = wifi_fails.saturating_add(1);
+                println!("kuid: wifi watchdog - wpa_supplicant gone, restarting (try {wifi_fails})");
+                sh("/etc/wifi/wifi_init.sh start >/dev/null 2>&1 &");
             }
         }
         // 3s cycle in short hops so SIGTERM lands within ~250ms

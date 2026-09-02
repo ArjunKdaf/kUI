@@ -76,6 +76,19 @@
 
 ### Fixed
 
+- **Wifi no longer switches itself off after sleep.** The Hammer's
+  wifi chip does not survive suspend: within a millisecond of waking,
+  its firmware is torn down and reloaded from scratch. That took the
+  network interface with it, and `wpa_supplicant` — which the whole UI
+  uses to decide whether wifi is on — died alongside it and was never
+  restarted. The result was a device that quietly came back from sleep
+  with the wifi toggle off and no way back short of a reboot. kUI now
+  powers the radio down cleanly before sleeping and brings it back on
+  wake, so the firmware is never live across a suspend, and the daemon
+  keeps an eye on `wpa_supplicant` and revives it if it ever dies for
+  any other reason. Wake-on-WLAN, which asked the same untrustworthy
+  firmware to stay half-alive while suspended, is no longer requested.
+
 - **Cheats now actually turn on.** The index handed to the core's
   `retro_cheat_set` was the cheat's position in the .cht file, but
   cores assign their own slots sequentially as they receive each one.

@@ -19,7 +19,26 @@ start() {
 	# wpa_supplicant with wpa_cli -p /etc/wifi/sockets
 	if [ ! -f "$CONF" ]; then
 		mkdir -p "$(dirname "$CONF")"
-		printf 'ctrl_interface=/etc/wifi/sockets\ndisable_scan_offload=1\nupdate_config=1\nwowlan_triggers=any\n' > "$CONF"
+		printf 'ctrl_interface=/etc/wifi/sockets\ndisable_scan_offload=1\nupdate_config=1\n' > "$CONF"
+	fi
+
+	# Wake-on-WLAN is asked for at suspend time and the XR819's support
+	# for it is not trustworthy on this firmware; we now tear the radio
+	# down before sleeping instead, so the trigger buys nothing and is a
+	# suspect in the resume-time firmware death. Strip it from configs
+	# written by older kUI builds -- in place, keeping the network blocks.
+	# NEVER edit this file in place. It holds every saved SSID + PSK, and
+	# the rootfs overlay can sit at 100% full (a stale Port Forge swapfile
+	# did exactly that) -- an in-place `sed -i` then renames a ZERO-BYTE
+	# temp over it and the user's networks are gone. Build the copy first,
+	# keep it only if it survived the write with content.
+	if grep -q '^wowlan_triggers=' "$CONF" 2>/dev/null; then
+		if grep -v '^wowlan_triggers=' "$CONF" > "$CONF.tmp" 2>/dev/null &&
+			[ -s "$CONF.tmp" ]; then
+			mv -f "$CONF.tmp" "$CONF"
+		else
+			rm -f "$CONF.tmp"
+		fi
 	fi
 
 	if [ -x /etc/init.d/wpa_supplicant ]; then

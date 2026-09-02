@@ -342,6 +342,37 @@ pub fn suspend_to_ram() -> std::io::Result<()> {
     std::fs::write("/sys/power/state", "mem")
 }
 
+/// The XR819 does not survive suspend. On resume the driver tears the
+/// chip down and reloads firmware within ~1ms of the wake:
+///
+///   [45982.094271] Suspended for 161374.468 seconds
+///   [45982.095236] [XRADIO] xradio_restart_work
+///   [45983.549729] ieee80211 phy0: Hardware restart was requested
+///   [45983.585208] [AP_WRN] BSS_CHANGED_ASSOC but driver is unjoined
+///
+/// wlan0 goes with it, so wpa_supplicant exits — and the stock
+/// /etc/init.d/wpa_supplicant is procd-managed with NO respawn param, so
+/// nothing restarts it. Wifi then stays dead until reboot while the UI
+/// (which reads liveness from the process) quietly shows "off".
+///
+/// Fix: take the radio down cleanly on the way into sleep so the firmware
+/// is never live across a suspend, and bring it back on wake. Paired —
+/// call [`wifi_resume`] for every [`wifi_suspend`]. Both are no-ops when
+/// the user has wifi off, so we never light up a radio they disabled.
+pub fn wifi_suspend(cfg: &kui_config::Config) {
+    if cfg.get_or("radio.wifi", "off") == "on" {
+        sh("/etc/wifi/wifi_init.sh stop");
+    }
+}
+
+/// Wake half of [`wifi_suspend`]. Backgrounded: association plus a DHCP
+/// lease takes seconds and must not stall the resume path.
+pub fn wifi_resume(cfg: &kui_config::Config) {
+    if cfg.get_or("radio.wifi", "off") == "on" {
+        sh("/etc/wifi/wifi_init.sh start >/dev/null 2>&1 &");
+    }
+}
+
 /// SPEC services: power profile — cpufreq policy0 sysfs. schedutil for
 /// every profile so an idle SoC always clocks down; profiles differ only
 /// by the frequency ceiling: performance = uncapped, auto = 1.4GHz-class,

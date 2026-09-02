@@ -92,6 +92,9 @@ impl SdlVideo {
 pub fn deep_sleep(events: &mut sdl2::EventPump, cfg: &kui_config::Config) {
         use std::time::{Duration, Instant};
         run_sleep_hooks("pre-sleep.d");
+        // Radio down before we freeze: the XR819 firmware dies on resume
+        // and takes wpa_supplicant with it. See tg5040::wifi_suspend.
+        tg5040::wifi_suspend(cfg);
         // Legacy helper daemons only; harmless no-ops once they are gone.
         // kuid needs no STOP/CONT: its key loop has a >1s tick-gap suspend
         // guard that discards stale events and held-key state on resume.
@@ -129,6 +132,9 @@ pub fn deep_sleep(events: &mut sdl2::EventPump, cfg: &kui_config::Config) {
         let _ = std::process::Command::new("sh")
             .args(["-c", "killall -CONT keymon.elf batmon.elf audiomon.elf 2>/dev/null"])
             .status();
+        // Radio back up before the hooks run, so a pak that wants the
+        // network on wake finds it coming up rather than dead.
+        tg5040::wifi_resume(cfg);
     run_sleep_hooks("post-resume.d");
     for _ in events.poll_iter() {}
 }

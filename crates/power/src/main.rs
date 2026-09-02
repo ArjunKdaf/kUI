@@ -40,6 +40,8 @@ fn sleep_to_ram() {
     // backlight off (DISP_LCD_SET_BRIGHTNESS raw 0) so a black screen
     // greets the sleeper, then flush before the kernel freezes us
     kui_hal::tg5040::set_raw_brightness(0);
+    // XR819 firmware does not survive suspend; see tg5040::wifi_suspend
+    kui_hal::tg5040::wifi_suspend(&cfg);
     sync();
     sleep(Duration::from_millis(300));
     for _ in 0..5 {
@@ -52,6 +54,7 @@ fn sleep_to_ram() {
     kui_hal::tg5040::set_raw_brightness(8);
     let pct = cfg.get_i32("display.brightness", 90);
     kui_hal::tg5040::set_raw_brightness(kui_hal::tg5040::brightness_raw(pct));
+    kui_hal::tg5040::wifi_resume(&cfg);
 }
 
 fn pids() -> Vec<i32> {
