@@ -60,6 +60,8 @@ const ENV_GET_VARIABLE: c_uint = 15;
 const ENV_SET_VARIABLES: c_uint = 16;
 const ENV_GET_VARIABLE_UPDATE: c_uint = 17;
 const ENV_SET_SUPPORT_NO_GAME: c_uint = 18;
+const ENV_SET_FRAME_TIME_CALLBACK: c_uint = 21;
+const ENV_SET_AUDIO_CALLBACK: c_uint = 22;
 const ENV_GET_LOG_INTERFACE: c_uint = 27;
 const ENV_GET_SAVE_DIRECTORY: c_uint = 31;
 const ENV_SET_SYSTEM_AV_INFO: c_uint = 32;
@@ -127,6 +129,33 @@ pub struct HostState {
     pub av_dirty: bool,
     pub system_dir: CString,
     pub save_dir: CString,
+    /// Frame-time callback (SET_FRAME_TIME_CALLBACK). Some cores have NO
+    /// internal clock and advance time only when we call this — see
+    /// [`Core::run_frame`].
+    pub frame_time_cb: Option<unsafe extern "C" fn(i64)>,
+    /// Microseconds per frame at the core's target fps, from the same struct.
+    pub frame_time_ref: i64,
+    /// When we last ticked the core's clock.
+    pub frame_time_last: Option<std::time::Instant>,
+    /// Audio callback (SET_AUDIO_CALLBACK). Cores using this interface emit
+    /// NOTHING from retro_run — audio exists only if we call this each frame.
+    pub audio_cb: Option<unsafe extern "C" fn()>,
+    /// Its companion enable/disable hook; the core stays silent until told true.
+    pub audio_set_state: Option<unsafe extern "C" fn(bool)>,
+}
+
+/// `struct retro_audio_callback` from libretro.h.
+#[repr(C)]
+struct AudioCallback {
+    callback: Option<unsafe extern "C" fn()>,
+    set_state: Option<unsafe extern "C" fn(bool)>,
+}
+
+/// `struct retro_frame_time_callback` from libretro.h.
+#[repr(C)]
+struct FrameTimeCallback {
+    callback: Option<unsafe extern "C" fn(i64)>,
+    reference: i64,
 }
 
 static mut HOST: Option<HostState> = None;
@@ -224,10 +253,47 @@ unsafe extern "C" fn cb_environment(cmd: c_uint, data: *mut c_void) -> bool {
                 Some(unsafe { (*(data as *const DiskControl)).clone() });
             true
         }
+        ENV_SET_FRAME_TIME_CALLBACK => {
+            // Not optional for every core: EasyRPG's LibretroClock keeps its
+            // whole notion of time in a counter this callback increments, so
+            // refusing here froze the clock at zero -- the game loaded, drew
+            // blank frames forever and produced no audio, with no error.
+            let ft = data as *const FrameTimeCallback;
+            if ft.is_null() {
+                return false;
+            }
+            unsafe {
+                host().frame_time_cb = (*ft).callback;
+                host().frame_time_ref = (*ft).reference;
+            }
+            host().frame_time_last = None;
+            true
+        }
+        ENV_SET_AUDIO_CALLBACK => {
+            // Also not optional for every core. EasyRPG's libretro backend
+            // emits NO audio from retro_run at all -- its only path out is
+            // this callback, decoding exactly one frame per call. Refusing
+            // here meant permanent silence with no warning of any kind.
+            // The core also re-registers a NULL pair on unload, so a null
+            // callback must clear our stored pointers, not be called.
+            let ac = data as *const AudioCallback;
+            if ac.is_null() {
+                return false;
+            }
+            unsafe {
+                host().audio_cb = (*ac).callback;
+                host().audio_set_state = (*ac).set_state;
+                // cores start muted until the frontend says otherwise
+                if let (Some(set), Some(_)) = (host().audio_set_state, host().audio_cb) {
+                    set(true);
+                }
+            }
+            true
+        }
         ENV_GET_LOG_INTERFACE => {
             // must be filled: handy (and friends) read the struct without
             // checking our return value and call whatever is in it
-            unsafe { *(data as *mut *const c_void) = cb_log as *const c_void };
+            unsafe { *(data as *mut *const c_void) = kui_core_log_shim as *const c_void };
             true
         }
         ENV_GET_VARIABLE => {
@@ -262,13 +328,43 @@ unsafe extern "C" fn cb_environment(cmd: c_uint, data: *mut c_void) -> bool {
     }
 }
 
-/// Core log sink. Called variadically by cores; we take the fixed args
-/// only (safe under the C ABI) and print the raw format when tracing.
-unsafe extern "C" fn cb_log(level: c_uint, fmt: *const c_char) {
-    if std::env::var_os("KUI_TRACE").is_some() && !fmt.is_null() {
-        let s = unsafe { CStr::from_ptr(fmt) }.to_string_lossy();
-        eprint!("core[{level}] {s}");
+// The variadic function cores are actually handed (csrc/log_shim.c). Stable
+// Rust can declare a variadic extern fn but not define one, so the shim does
+// the vsnprintf and calls kui_core_log_line below with a finished string.
+unsafe extern "C" {
+    fn kui_core_log_shim(level: c_uint, fmt: *const c_char, ...);
+}
+
+/// Levels per libretro.h: 0 DEBUG, 1 INFO, 2 WARN, 3 ERROR.
+const LOG_WARN: c_uint = 2;
+
+/// Core log sink, called by the shim with the arguments already expanded.
+///
+/// Warnings and errors ALWAYS print: a core explaining why it refused a game
+/// is the single most useful thing on the way to a black screen, and dropping
+/// it unless someone happened to set KUI_TRACE cost a long debugging session.
+/// Debug/info stay behind KUI_TRACE so normal play is quiet.
+///
+/// # Safety
+/// `msg` must be NUL-terminated and valid for the duration of the call. The
+/// only caller is the shim, which passes its own stack buffer.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn kui_core_log_line(level: c_uint, msg: *const c_char) {
+    if msg.is_null() {
+        return;
     }
+    if level < LOG_WARN && std::env::var_os("KUI_TRACE").is_none() {
+        return;
+    }
+    let s = unsafe { CStr::from_ptr(msg) }.to_string_lossy();
+    let tag = match level {
+        0 => "debug",
+        1 => "info",
+        2 => "warn",
+        _ => "error",
+    };
+    // cores are inconsistent about trailing newlines
+    eprintln!("core[{tag}] {}", s.trim_end_matches('\n'));
 }
 
 #[repr(C)]
@@ -455,6 +551,11 @@ pub fn enumerate_options(core_path: &Path, system_dir: &Path) -> Result<Vec<VarD
             // (/tmp/.mtp_fifo) blocks that open forever
             system_dir: CString::new(system_dir.display().to_string()).unwrap(),
             save_dir: CString::new("/tmp").unwrap(),
+            frame_time_cb: None,
+            frame_time_ref: 0,
+            frame_time_last: None,
+            audio_cb: None,
+            audio_set_state: None,
         });
     }
     let lib = unsafe { libloading::Library::new(core_path) }.map_err(|e| e.to_string())?;
@@ -587,6 +688,11 @@ pub fn core_supports_zip(core_path: &Path) -> bool {
                     .map_err(|e| e.to_string())?,
                 save_dir: CString::new(save_dir.to_string_lossy().as_bytes())
                     .map_err(|e| e.to_string())?,
+                frame_time_cb: None,
+                frame_time_ref: 0,
+                frame_time_last: None,
+                audio_cb: None,
+                audio_set_state: None,
             });
         }
 
@@ -735,7 +841,31 @@ pub fn core_supports_zip(core_path: &Path) -> bool {
     }
 
     pub fn run_frame(&self) {
+        // Tick the core's clock BEFORE running the frame. Cores that keep
+        // their own time ignore this; cores with an external clock (EasyRPG)
+        // do not advance at all without it.
+        let h = host();
+        if let Some(cb) = h.frame_time_cb {
+            // reference = one frame at the core's target fps; fall back to
+            // ~60fps if a core hands us something useless
+            let refr = if h.frame_time_ref > 0 { h.frame_time_ref } else { 16_667 };
+            let usec = match h.frame_time_last {
+                None => refr,
+                // Clamp the measured delta: after a suspend/resume the wall
+                // clock can have jumped by hours, and handing a core that as
+                // one frame would fast-forward the game.
+                Some(t) => (t.elapsed().as_micros() as i64).clamp(1, refr.saturating_mul(4)),
+            };
+            h.frame_time_last = Some(std::time::Instant::now());
+            unsafe { cb(usec) };
+        }
         unsafe { (self.run)() };
+        // Pull one frame of audio from cores that use the audio-callback
+        // interface. They push nothing during retro_run, so without this
+        // they are simply silent.
+        if let Some(cb) = h.audio_cb {
+            unsafe { cb() };
+        }
     }
 
     pub fn reset(&self) {
