@@ -7803,6 +7803,10 @@ const CORE_TABLE: &[(&str, &str)] = &[
     ("COLECO", "gearcoleco"),
     ("CPC", "cap32"),
     ("DOS", "dosbox_pure"),
+    // RPG Maker 2000/2003 games, run by the EasyRPG Player core. Point the
+    // folder at the game's RPG_RT.ldb (or a zipped game); the core wants a
+    // full path, so it reads the rest of the project from alongside it.
+    ("EASYRPG", "easyrpg"),
     ("F8", "fake08"),
     ("FBN", "fbneo"),
     ("FC", "fceumm"),
