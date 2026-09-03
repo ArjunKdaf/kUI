@@ -32,7 +32,6 @@ source for any shipped core build is available on request.
 | mednafen_supergrafx | github.com/libretro/beetle-supergrafx-libretro | GPL-2.0 |
 | mednafen_vb | github.com/libretro/beetle-vb-libretro | GPL-2.0 |
 | mednafen_wswan | github.com/libretro/beetle-wswan-libretro | GPL-2.0 |
-| melonds | github.com/libretro/melonDS | GPL-3.0 |
 | mgba | github.com/mgba-emu/mgba | MPL-2.0 |
 | neocd | github.com/libretro/neocd_libretro | LGPL-3.0 |
 | o2em | github.com/libretro/libretro-o2em | Artistic License |
