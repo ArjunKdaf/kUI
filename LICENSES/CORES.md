@@ -2,9 +2,12 @@
 
 kUI ships prebuilt libretro cores in `.system/tg5040/cores/`. They are
 built from unmodified upstream sources, cross-compiled for aarch64
-(tg5040) with the `ghcr.io/loveretro/tg5040-toolchain` image. Each core
-is governed by its own upstream license, listed below; the authoritative
-text is the LICENSE file in each upstream repository. Corresponding
+(tg5040) with the `ghcr.io/loveretro/tg5040-toolchain` image — except
+`easyrpg`, which is built against kUI's own crosstool-NG toolchain from
+EasyRPG Player 0.8.1.1 + liblcf 0.8.1 (no upstream linux-aarch64 glibc
+build exists). Each core is governed by its own upstream license, listed
+below; the authoritative text is the LICENSE file in each upstream
+repository. Corresponding
 source for any shipped core build is available on request.
 
 | Core | Upstream | License |
@@ -14,6 +17,7 @@ source for any shipped core build is available on request.
 | bluemsx | github.com/libretro/blueMSX-libretro | GPL-2.0 |
 | cap32 | github.com/libretro/libretro-cap32 | GPL-2.0 |
 | dosbox_pure | github.com/schellingb/dosbox-pure | GPL-2.0 |
+| easyrpg | github.com/EasyRPG/Player + /liblcf | GPL-3.0-or-later (Player) + MIT (liblcf) |
 | fake08 | github.com/jtothebell/fake-08 | MIT |
 | fbneo | github.com/libretro/FBNeo | FBNeo license (non-commercial) |
 | fceumm | github.com/libretro/libretro-fceumm | GPL-2.0 |

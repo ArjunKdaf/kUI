@@ -8,14 +8,12 @@ engine bundles them inline, its components' texts — e.g. Ren'Py); `THIRD-PARTY
 **credits** each bundled component (name, license, copyright, upstream URL) with
 its full verbatim text available at that upstream / on request; and `SOURCE.md`
 gives the GPL/LGPL corresponding-source pointers. For the GPL engines,
-corresponding source is available per each `SOURCE.md`; the one built here from
-source (EasyRPG) ships its exact upstream tags.
+corresponding source is available per each `SOURCE.md`.
 
 | Engine | Upstream | Version | License | Shipped |
 |---|---|---|---|---|
 | mkxp-z | github.com/mkxp-z/mkxp-z | ~v2.4.2 | GPL-2.0-or-later¹ | lifted binary |
 | falcon-mkxp | github.com/pk-2000/Falcon-mkxp (fork of Ancurio/mkxp) | fork build² | GPL-2.0-or-later | lifted binary |
-| EasyRPG | github.com/EasyRPG/Player + /liblcf | Player 0.8.1.1, liblcf 0.8.1 | GPL-3.0-or-later (Player) + MIT (liblcf) | built from source |
 | Ren'Py | github.com/renpy/renpy (+ ptitSeb/gl4es) | 8.3.4 SDK | MIT core + bundled LGPL/PSF/etc.³ | lifted from SDK |
 | Solarus | gitlab.com/solarus-games/solarus | v1.6.5 | GPL-3.0 | lifted binary |
 | TheXTech | github.com/TheXTech/TheXTech | v1.3.7 (+hotfix1) | GPL-3.0-or-later | lifted binary |
@@ -39,7 +37,7 @@ Notes:
    by the device (not bundled in this runtime).
 
 Common libraries such as SDL2, OpenAL, libvorbis/ogg, zlib and pixman are
-device-provided for most engines and not bundled — but this varies per engine
-(e.g. EasyRPG bundles its own libvorbis/vorbisfile/ogg and libpng). Each is
+device-provided for most engines and not bundled — but this varies per engine.
+Each is
 credited as a dependency in the relevant engine's `THIRD-PARTY.md`, which states
 whether it is bundled or device-provided.
